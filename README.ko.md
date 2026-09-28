@@ -22,22 +22,31 @@ Ampere GPU(Compute Capability **8.6**)에서 지원 Qwen `.ninfer` 모델을 실
 
 ### Windows x64
 
-1. [최신 릴리스](https://github.com/doha-230/ninfer-sm86/releases/latest)에서 NVIDIA 드라이버 환경에 맞는 CUDA 12 또는 CUDA 13 아카이브를 받아 압축을 풉니다.
-2. [모델 카드](#모델-아티팩트)의 안내에 따라 호환 아티팩트를 다운로드해 `models` 디렉터리에 둡니다. 아래 Qwen3.8-27B groupwise-int 예제는 Windows 안내서에서도 사용하는 모델입니다.
-3. 압축을 푼 실행 파일 디렉터리에서 짧은 CLI 생성을 실행합니다.
+1. [최신 릴리스](https://github.com/doha-230/ninfer-sm86/releases/latest)에서 NVIDIA 드라이버에 맞는 CUDA 12 또는 CUDA 13용 Windows x64 아카이브를 받아 압축을 풉니다.
+2. [Qwen3.8-27B groupwise-int](https://huggingface.co/neroued/Qwen3.8-27B-NInfer/blob/main/qwen3_8_27b.ninfer) 아티팩트(약 17 GiB)를 다운로드합니다. 압축을 푼 실행 파일 옆의 `models\qwen3_8_27b.ninfer`로 저장하세요. 체크섬은 [모델 카드](model-cards/Qwen3.8-27B-NInfer/README.md)에 있습니다.
+3. 해당 디렉터리에서 PowerShell을 열고 짧은 텍스트 생성을 실행합니다.
 
 ```powershell
-.\infer.exe .\models\qwen3_8_27b.ninfer `
+.\ninfer.exe .\models\qwen3_8_27b.ninfer `
   --prompt "Explain prefill and decode in two sentences." `
   --max-context 8192 --max-new 128 `
   --kv-dtype int8
 ```
 
-로컬 HTTP 서버를 실행하려면 `infer-serve.exe`와 [Windows 안내서](docs/rtx-3090-windows.md)를 참고하세요. 릴리스 아카이브에는 Windows 실행 파일과 런타임 의존성이 포함되며 **모델 가중치는 포함되지 않습니다.**
+같은 아티팩트로 로컬 HTTP 서버를 시작하려면:
+
+```powershell
+.\ninfer-serve.exe .\models\qwen3_8_27b.ninfer `
+  --host 127.0.0.1 --port 8080 `
+  --max-context 8192 --kv-capacity 8192 `
+  --max-concurrency 1 --kv-dtype int8
+```
+
+요청 예제는 [HTTP serving 안내](docs/serving.md)를 참고하세요. 아카이브에는 Windows 실행 파일과 런타임 의존성이 포함되며 **모델 가중치는 포함되지 않습니다.** Microsoft Visual C++ 2022 런타임이 없다면 별도로 설치해야 합니다.
 
 ### Linux
 
-사전 빌드 Linux 릴리스 아카이브는 없습니다. Docker 또는 소스에서 빌드하고 모델 아티팩트를 별도로 다운로드하세요. [Linux 안내서](docs/rtx-3090-linux.md)에 필수 구성요소, 빌드 명령, Docker 실행 예제와 짧은 생성 확인 절차가 있습니다.
+사전 빌드 Linux 릴리스 아카이브는 없습니다. Docker 또는 소스에서 빌드하고 모델 아티팩트를 별도로 다운로드하세요. [Linux 안내서](docs/rtx-3090-linux.md)에 필수 구성요소, 빌드 명령, Docker 실행 예제와 짧은 생성 확인 절차가 있습니다. 안내서의 과거 릴리스 관련 내용은 현재 Windows 릴리스의 설명이 아닙니다.
 
 ## 모델 아티팩트
 

@@ -22,9 +22,9 @@ Choose an artifact from its [model card](#model-artifacts). The linked cards doc
 
 ### Windows x64
 
-1. Download the [latest release](https://github.com/doha-230/ninfer-sm86/releases/latest). Choose the CUDA 12 or CUDA 13 archive appropriate for your NVIDIA driver environment, and extract it.
-2. Download a compatible artifact from a [model card](#model-artifacts) into a `models` directory. The Qwen3.8-27B groupwise-int example below is also used by the Windows guide.
-3. From the extracted application directory, run a short CLI generation:
+1. Download and extract a Windows x64 archive from the [latest release](https://github.com/doha-230/ninfer-sm86/releases/latest). Choose its CUDA 12 or CUDA 13 variant for your installed NVIDIA driver.
+2. Download [Qwen3.8-27B groupwise-int](https://huggingface.co/neroued/Qwen3.8-27B-NInfer/blob/main/qwen3_8_27b.ninfer) (about 17 GiB). Save it as `models\qwen3_8_27b.ninfer` beside the extracted executables. The [model card](model-cards/Qwen3.8-27B-NInfer/README.md) has its checksum.
+3. Open PowerShell in that directory and run a short text generation:
 
 ```powershell
 .\ninfer.exe .\models\qwen3_8_27b.ninfer `
@@ -33,11 +33,20 @@ Choose an artifact from its [model card](#model-artifacts). The linked cards doc
   --kv-dtype int8
 ```
 
-For a local HTTP server instead, use `infer-serve.exe` and the [Windows guide](docs/rtx-3090-windows.md). The release archive contains Windows applications and runtime dependencies, **not** model weights.
+To start a local HTTP server with the same artifact, run:
+
+```powershell
+.\ninfer-serve.exe .\models\qwen3_8_27b.ninfer `
+  --host 127.0.0.1 --port 8080 `
+  --max-context 8192 --kv-capacity 8192 `
+  --max-concurrency 1 --kv-dtype int8
+```
+
+See [HTTP serving](docs/serving.md) for request examples. The archive contains Windows applications and runtime dependencies, **not** model weights. Install the Microsoft Visual C++ 2022 runtime if it is not already present.
 
 ### Linux
 
-There is no prebuilt Linux release archive. Build with Docker or from source, then download a model artifact separately. The [Linux guide](docs/rtx-3090-linux.md) includes prerequisites, build commands, a Docker run example, and a short generation check.
+There is no prebuilt Linux release archive. Build with Docker or from source, then download a model artifact separately. The [Linux guide](docs/rtx-3090-linux.md) includes prerequisites, build commands, a Docker run example, and a short generation check. Its older release-specific notes are not a description of the current Windows release.
 
 ## Model artifacts
 
