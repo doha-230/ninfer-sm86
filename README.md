@@ -2,13 +2,31 @@
 
 [English](README.md) · [한국어](README.ko.md)
 
-Run supported Qwen `.ninfer` models on Ampere GPUs with compute capability **8.6**. This fork provides the `sm_86` build and runtime path that the upstream Blackwell-focused project does not target.
+Run supported Qwen `.ninfer` models on Ampere GPUs with compute capability **8.6**. This repository builds on Don-Chad's SM86 fork of the Blackwell-focused NInfer project; SM86 support did **not** originate here.
 
-> **Start here:** RTX 3090 / 3090 Ti users can download a Windows package and a model artifact, then run a local CLI or HTTP server. Linux users can build with Docker or from source. Model weights are separate downloads.
+> **Start here:** RTX 3090 / 3090 Ti and RTX A6000 users can download a Windows package and a model artifact, then run a local CLI or HTTP server. Linux users can build with Docker or from source. Model weights are separate downloads.
+
+## What this fork changes from Don-Chad
+
+[Don-Chad/ninfer-3090](https://github.com/Don-Chad/ninfer-3090) already brought Qwen inference to `sm_86`, including RTX 3090 builds, Windows and Linux binaries, and the main serving features. This fork does not claim those as new inventions.[1][2] Its additional practical work is:
+
+- Separate **CUDA 12 and CUDA 13 Windows x64 release archives**, so users can select a package for their driver environment.[4]
+- GitHub-hosted **Python tests and a complete CUDA 12.8 `sm_86` compile**; GPU CTest remains conditional on an available self-hosted GPU runner. This is build/host-test coverage, not GPU runtime qualification.
+- **RTX A6000 (Ampere, `sm_86`) operation confirmed by a user**. This is not a separate A6000 kernel path, a benchmark, or proof that every model and profile works on that device.
+
+Don-Chad's v0.6.1 release included a Linux binary; the current release here supplies Windows archives only. Linux users build from source or Docker.[2][4]
 
 ## Is my GPU supported?
 
-The software target is Ampere `sm_86`; RTX 3090 and RTX 3090 Ti are the primary reference devices. Other `sm_86` GPUs may have substantially less VRAM. Model fit and usable context depend on the specific card, artifact, options, and other GPU workloads—start with a short context and one request.
+The build target is Ampere `sm_86`, not all RTX cards. NVIDIA lists the devices below as compute capability 8.6; architecture eligibility is **not** a claim that these large Qwen artifacts fit in each card's VRAM.[3]
+
+| GPU | Status for this repository | Practical limit |
+|---|---|---|
+| GeForce RTX 3090 / 3090 Ti | Established RTX 3090 SM86 path inherited from Don-Chad; primary reference class | 24 GB cards; available memory still depends on artifact and context. |
+| NVIDIA RTX A6000 (Ampere) | **User-confirmed working** on A6000; configuration and full test matrix not recorded here | 48 GB class; no measured speed or validated maximum context is claimed. |
+| GeForce RTX 3080 / 3080 Ti, 3070 / 3070 Ti, 3060 / 3060 Ti; RTX A5000 / A4000 / A2000 | `sm_86` architecture candidates, **not verified here** | VRAM varies; the listed 27B artifacts alone occupy roughly 16–17 GiB before runtime allocations, so many configurations cannot fit. |
+
+Check your GPU's compute capability and VRAM before downloading weights. `sm_80` (for example A100) and `sm_89` (for example RTX 4090) are not covered by the `sm_86` release archives; this table is not an exhaustive list of NVIDIA 8.6 devices.[3] Start with a short context and one request, and distinguish a successful load from full route qualification.
 
 | Model | Artifact profiles | Notes |
 |---|---|---|
@@ -77,3 +95,10 @@ Features depend on the selected artifact and startup options. The server hosts o
 - [Latest release](https://github.com/doha-230/ninfer-sm86/releases/latest) · [English release notes](RELEASE_NOTES_0.7.0-sm86.md) · [한국어 릴리스 노트](RELEASE_NOTES_0.7.0-sm86.ko.md)
 - [Documentation index](docs/README.md) · [Contributing policy](PR_POLICY.md) · [Upstream NInfer](https://github.com/Neroued/ninfer)
 - Apache License 2.0 · [LICENSE](LICENSE)
+
+## Sources
+
+[1] https://github.com/Don-Chad/ninfer-3090 — Don-Chad NInfer-3090
+[2] https://github.com/Don-Chad/ninfer-3090/releases/tag/v0.6.1-rtx3090 — Don-Chad v0.6.1 release
+[3] https://developer.nvidia.com/cuda-gpus — NVIDIA CUDA GPUs
+[4] https://github.com/doha-230/ninfer-sm86/releases/tag/v0.7.0-sm86 — NInfer SM86 v0.7.0 release

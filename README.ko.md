@@ -2,13 +2,31 @@
 
 [English](README.md) · **한국어**
 
-Ampere GPU(Compute Capability **8.6**)에서 지원 Qwen `.ninfer` 모델을 실행하세요. 이 포크는 Blackwell 중심의 upstream 프로젝트가 대상으로 삼지 않는 `sm_86` 빌드·런타임 경로를 제공합니다.
+Ampere GPU(Compute Capability **8.6**)에서 지원 Qwen `.ninfer` 모델을 실행하세요. 이 저장소는 Blackwell 중심 NInfer에서 파생된 Don-Chad의 SM86 포크를 기반으로 합니다. SM86 지원을 이 포크가 처음 만든 것은 아닙니다.
 
-> **시작 안내:** RTX 3090/3090 Ti 사용자는 Windows 패키지와 모델 아티팩트를 각각 다운로드해 로컬 CLI 또는 HTTP 서버를 실행할 수 있습니다. Linux에서는 Docker나 소스 빌드를 사용합니다. 모델 가중치는 패키지에 포함되지 않습니다.
+> **시작 안내:** RTX 3090/3090 Ti 및 RTX A6000 사용자는 Windows 패키지와 모델 아티팩트를 각각 다운로드해 로컬 CLI 또는 HTTP 서버를 실행할 수 있습니다. Linux에서는 Docker나 소스 빌드를 사용합니다. 모델 가중치는 패키지에 포함되지 않습니다.
+
+## Don-Chad 원본과 비교해 달라진 점
+
+[Don-Chad/ninfer-3090](https://github.com/Don-Chad/ninfer-3090)은 이미 RTX 3090용 `sm_86` Qwen 추론, Windows·Linux 바이너리, 주요 서버 기능을 제공했습니다. 이 포크가 해당 기능을 처음 구현했다고 주장하지 않습니다.[1][2] 이 저장소에서 추가로 해결한 실용적 과제는 다음과 같습니다.
+
+- **CUDA 12와 CUDA 13용 Windows x64 릴리스 아카이브를 분리**해 드라이버 환경에 맞는 패키지를 선택할 수 있게 했습니다.[4]
+- GitHub 호스팅 러너에서 **Python 테스트와 CUDA 12.8 `sm_86` 전체 빌드**를 검사합니다. GPU CTest는 사용할 수 있는 self-hosted GPU runner가 있을 때만 실행됩니다. 이는 GPU 실행 검증과 다릅니다.
+- **RTX A6000(Ampere, `sm_86`) 동작을 사용자로부터 확인**했습니다. A6000 전용 커널, 성능 수치 또는 모든 모델·설정 조합의 검증을 뜻하지는 않습니다.
+
+Don-Chad의 v0.6.1은 Linux 바이너리도 배포했지만, 이 저장소의 현재 릴리스에는 Windows 아카이브만 있습니다. Linux는 소스 또는 Docker로 빌드합니다.[2][4]
 
 ## 내 GPU에서 실행할 수 있나요?
 
-소프트웨어 대상은 Ampere `sm_86`이며 RTX 3090과 RTX 3090 Ti를 주요 기준 장치로 삼습니다. 다른 `sm_86` GPU는 VRAM이 훨씬 적을 수 있습니다. 모델 적재 여부와 사용 가능한 컨텍스트 길이는 GPU, 아티팩트, 실행 옵션, 다른 GPU 작업에 따라 달라지므로 작은 컨텍스트와 단일 요청부터 시작하세요.
+빌드 대상은 Ampere `sm_86`이지 모든 RTX GPU가 아닙니다. NVIDIA의 Compute Capability 목록에 따라 아래 장치를 구분했습니다. 아키텍처가 맞는다는 것과 대형 Qwen 아티팩트가 VRAM에 들어간다는 것은 다릅니다.[3]
+
+| GPU | 이 저장소에서의 상태 | 주의할 점 |
+|---|---|---|
+| GeForce RTX 3090 / 3090 Ti | Don-Chad에서 이어진 RTX 3090 SM86 경로; 주요 기준 제품군 | 24 GB급. 실제 여유 메모리는 아티팩트와 컨텍스트에 따라 다릅니다. |
+| NVIDIA RTX A6000 (Ampere) | **사용자가 A6000에서 동작 확인**. 설정과 전체 테스트 항목은 기록되지 않았습니다. | 48 GB급. 성능이나 최대 컨텍스트 검증으로 확대 해석하지 마세요. |
+| GeForce RTX 3080 / 3080 Ti, 3070 / 3070 Ti, 3060 / 3060 Ti; RTX A5000 / A4000 / A2000 | `sm_86` 아키텍처 후보이며 **이 저장소에서 검증하지 않음** | VRAM이 제각각입니다. 나열된 27B 아티팩트 자체가 런타임 메모리 외에 약 16~17 GiB를 차지하므로 많은 구성에서 적재가 불가능합니다. |
+
+가중치를 받기 전에 GPU의 Compute Capability와 VRAM을 확인하세요. `sm_80`(예: A100)과 `sm_89`(예: RTX 4090)는 `sm_86` 릴리스 아카이브의 대상이 아닙니다. 이 표는 NVIDIA의 모든 8.6 장치를 나열하지 않습니다.[3] 작은 컨텍스트와 단일 요청에서 시작하고, 모델 적재 성공과 전체 경로 검증을 구분해야 합니다.
 
 | 모델 | 아티팩트 프로필 | 참고 |
 |---|---|---|
@@ -77,3 +95,10 @@ Ampere GPU(Compute Capability **8.6**)에서 지원 Qwen `.ninfer` 모델을 실
 - [최신 릴리스](https://github.com/doha-230/ninfer-sm86/releases/latest) · [English 릴리스 노트](RELEASE_NOTES_0.7.0-sm86.md) · [한국어 릴리스 노트](RELEASE_NOTES_0.7.0-sm86.ko.md)
 - [문서 목차](docs/README.md) · [기여 정책](PR_POLICY.md) · [Upstream NInfer](https://github.com/Neroued/ninfer)
 - Apache License 2.0 · [LICENSE](LICENSE)
+
+## Sources
+
+[1] https://github.com/Don-Chad/ninfer-3090 — Don-Chad NInfer-3090
+[2] https://github.com/Don-Chad/ninfer-3090/releases/tag/v0.6.1-rtx3090 — Don-Chad v0.6.1 release
+[3] https://developer.nvidia.com/cuda-gpus — NVIDIA CUDA GPUs
+[4] https://github.com/doha-230/ninfer-sm86/releases/tag/v0.7.0-sm86 — NInfer SM86 v0.7.0 release
