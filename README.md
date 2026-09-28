@@ -1,57 +1,70 @@
 # NInfer SM86
 
-[English](README.md) | [한국어](README.ko.md)
+[English](README.md) · [한국어](README.ko.md)
 
-## Why this fork
+Run supported Qwen `.ninfer` models on Ampere GPUs with compute capability **8.6**. This fork provides the `sm_86` build and runtime path that the upstream Blackwell-focused project does not target.
 
-Upstream NInfer targets Blackwell (`sm_120a`). Ampere users need a compatible `sm_86` build and runtime to run NInfer on GPUs they already own. **This fork provides that path** for registered Qwen `.ninfer` artifacts, including Windows packages for CUDA 12/13 and Linux source/Docker builds.
+> **Start here:** RTX 3090 / 3090 Ti users can download a Windows package and a model artifact, then run a local CLI or HTTP server. Linux users can build with Docker or from source. Model weights are separate downloads.
 
-The goal is practical single-GPU inference with bounded memory and request concurrency—not multi-GPU serving or a datacenter-scale scheduler. RTX 3090/3090 Ti are the primary reference devices; other `sm_86` GPUs may have less memory and need smaller contexts or concurrency.
+## Is my GPU supported?
 
-## Supported models
+The software target is Ampere `sm_86`; RTX 3090 and RTX 3090 Ti are the primary reference devices. Other `sm_86` GPUs may have substantially less VRAM. Model fit and usable context depend on the specific card, artifact, options, and other GPU workloads—start with a short context and one request.
 
-| Model | Registered weight IDs | Notes |
+| Model | Artifact profiles | Notes |
 |---|---|---|
 | Qwen3.6-27B | `groupwise-int`, `nvfp4` | Text and vision |
 | Qwen3.8-27B | `groupwise-int`, `nvfp4` | Text and vision |
 | Qwen3.6-35B-A3B | `groupwise-int` | Text and vision; DFlash is text-only |
 
-Model cards contain artifact identity, download, and compatibility details:
+Choose an artifact from its [model card](#model-artifacts). The linked cards document artifact identity and provenance; some were authored for upstream Blackwell builds. For Ampere, use the SM86 runtime and constraints described here. `.ninfer` is NInfer's own format; a Transformers checkpoint, Safetensors directory, or GGUF file cannot be used directly.
 
-- [Qwen3.6-27B — groupwise-int](model-cards/Qwen3.6-27B-NInfer/README.md) · [NVFP4](model-cards/Qwen3.6-27B-nvfp4-NInfer/README.md)
-- [Qwen3.8-27B — groupwise-int](model-cards/Qwen3.8-27B-NInfer/README.md) · [NVFP4](model-cards/Qwen3.8-27B-nvfp4-NInfer/README.md)
-- [Qwen3.6-35B-A3B — groupwise-int](model-cards/Qwen3.6-35B-A3B-NInfer/README.md)
+## Quick start
 
-## What it provides
+### Windows x64
 
-- One `sm_86` runtime for the registered models and `.ninfer` artifacts.
-- Text, vision, prefix reuse, MTP, and CLI/HTTP inference routes supported by each artifact.
-- Paged BF16 or INT8 group-64 KV cache, CUDA Graph decode, and ReplaySSM state handling.
-- Startup-bounded cohorts of 1–8 requests and bounded pending-request admission.
-- OpenAI Chat Completions/Responses and Anthropic Messages APIs. Tool calls are returned to the client; tools are not executed by NInfer.
+1. Download the [latest release](https://github.com/doha-230/ninfer-sm86/releases/latest). Choose the CUDA 12 or CUDA 13 archive appropriate for your NVIDIA driver environment, and extract it.
+2. Download a compatible artifact from a [model card](#model-artifacts) into a `models` directory. The Qwen3.8-27B groupwise-int example below is also used by the Windows guide.
+3. From the extracted application directory, run a short CLI generation:
 
-## Download and run
+```powershell
+.\ninfer.exe .\models\qwen3_8_27b.ninfer `
+  --prompt "Explain prefill and decode in two sentences." `
+  --max-context 8192 --max-new 128 `
+  --kv-dtype int8
+```
 
-1. **Windows:** download the [latest release](https://github.com/doha-230/ninfer-sm86/releases/latest). It includes CUDA 12 and CUDA 13 x64 archives; model weights are separate.
-2. Download a compatible `.ninfer` model using one of the model cards above.
-3. Use the included launcher or follow the [Windows guide](docs/rtx-3090-windows.md).
-4. **Linux:** build with Docker or from source using the [Linux guide](docs/rtx-3090-linux.md). No prebuilt Linux archive is published.
+For a local HTTP server instead, use `infer-serve.exe` and the [Windows guide](docs/rtx-3090-windows.md). The release archive contains Windows applications and runtime dependencies, **not** model weights.
 
-Source builds require CUDA Toolkit 12.8+ and CMake 3.28+. For exact CLI flags and request formats, see [CLI](docs/cli.md) and [HTTP serving](docs/serving.md).
+### Linux
 
-## Limits and validation
+There is no prebuilt Linux release archive. Build with Docker or from source, then download a model artifact separately. The [Linux guide](docs/rtx-3090-linux.md) includes prerequisites, build commands, a Docker run example, and a short generation check.
 
-- Single CUDA GPU and one resident model per process; no multi-GPU execution or CPU weight offload.
-- Concurrency is bounded and selected at startup; this is not preemptive, large-scale continuous batching.
-- Blackwell-only NVFP4/W4A4 and FP8 A8 tensor-core execution is unavailable on `sm_86`. FP8/NVFP4 weights use supported A16 dequantization paths.
-- Use BF16 or INT8 KV. FP8 E4M3 KV and RotorQuant `rk8v4` are not supported.
-- Capacity depends on the artifact, context, runtime options, and other GPU allocations. RTX 3090 figures from older builds are not a qualification of the current source or every release binary.
-- Hosted CI checks Python tests and compiles the CUDA `sm_86` targets. GPU CTest requires a self-hosted NVIDIA runner; none is currently registered, so compile success does not establish on-device kernel correctness.
+## Model artifacts
+
+These links identify the registered artifacts and provide download instructions, filenames, and checksums. Runtime requirements shown in an upstream model card do not describe this fork's SM86 compatibility:
+
+- Qwen3.6-27B: [groupwise-int](model-cards/Qwen3.6-27B-NInfer/README.md) · [NVFP4](model-cards/Qwen3.6-27B-nvfp4-NInfer/README.md)
+- Qwen3.8-27B: [groupwise-int](model-cards/Qwen3.8-27B-NInfer/README.md) · [NVFP4](model-cards/Qwen3.8-27B-nvfp4-NInfer/README.md)
+- Qwen3.6-35B-A3B: [groupwise-int](model-cards/Qwen3.6-35B-A3B-NInfer/README.md)
+
+## Runtime capabilities
+
+- Text generation and, on supported artifact routes, image/video input.
+- Local CLI plus OpenAI Chat Completions/Responses and Anthropic Messages-compatible HTTP APIs.
+- Optional MTP speculative decoding, prefix reuse, CUDA Graph decode, and bounded concurrent requests.
+- BF16 or INT8 paged KV cache. Tool calls can be returned to clients; NInfer does not execute tools.
+
+Features depend on the selected artifact and startup options. The server hosts one model on one GPU per process; concurrency is bounded and configured at startup. This is not multi-GPU inference or a preemptive, large-scale continuous-batching service. See [CLI](docs/cli.md) and [HTTP serving](docs/serving.md) for exact behavior and options.
+
+## SM86 constraints and validation
+
+- Blackwell-only NVFP4/W4A4 and FP8 A8 Tensor Core execution is unavailable on SM86. NVFP4/FP8 weight artifacts use supported A16 dequantization routes; the weight profile does not imply Blackwell kernel support.
+- KV cache supports BF16 and INT8. FP8 E4M3 KV and RotorQuant `rk8v4` are not supported.
+- Available VRAM, context length, and safe concurrency vary by GPU and workload. Historical RTX 3090 measurements are not a guarantee for every SM86 card, current source revision, or release binary; see the [performance methodology](docs/performance.md).
+- CI runs Python tests and compiles the CUDA SM86 targets. On-device CUDA tests need an NVIDIA GPU runner; none is currently registered, so CI compilation alone does not qualify GPU runtime correctness.
 
 ## Project links
 
-- [Latest release](https://github.com/doha-230/ninfer-sm86/releases/latest)
-- [Release notes — English](RELEASE_NOTES_0.7.0-sm86.md) · [한국어](RELEASE_NOTES_0.7.0-sm86.ko.md)
-- [Documentation index](docs/README.md) · [Contributing policy](PR_POLICY.md)
-- [Upstream NInfer](https://github.com/Neroued/ninfer)
-- Apache License 2.0 — see [LICENSE](LICENSE).
+- [Latest release](https://github.com/doha-230/ninfer-sm86/releases/latest) · [English release notes](RELEASE_NOTES_0.7.0-sm86.md) · [한국어 릴리스 노트](RELEASE_NOTES_0.7.0-sm86.ko.md)
+- [Documentation index](docs/README.md) · [Contributing policy](PR_POLICY.md) · [Upstream NInfer](https://github.com/Neroued/ninfer)
+- Apache License 2.0 · [LICENSE](LICENSE)
