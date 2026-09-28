@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 
+import pytest
 import torch
 
 from tools.artifact.container import (
@@ -18,12 +20,18 @@ from tools.convert.qwen3_6_27b import convert, inventory, recipe
 
 
 OFFICIAL_MODEL = Path(
-    "/home/neroued/models/llm/qwen/Qwen3.6-27B/base-hf-bf16"
+    os.environ.get(
+        "NINFER_QWEN3_6_27B_SOURCE",
+        "/home/neroued/models/llm/qwen/Qwen3.6-27B/base-hf-bf16",
+    )
 )
 
 
 def test_official_config_uses_only_nested_mtp_field():
-    config = json.loads((OFFICIAL_MODEL / "config.json").read_text())
+    config_path = OFFICIAL_MODEL / "config.json"
+    if not config_path.is_file():
+        pytest.skip(f"official source checkpoint is not available: {OFFICIAL_MODEL}")
+    config = json.loads(config_path.read_text())
 
     assert "mtp_num_hidden_layers" not in config
     summary = convert.validate_config(config)

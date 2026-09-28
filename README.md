@@ -1,40 +1,61 @@
-# NInfer-3090
+# NInfer SM86
 
-NInfer-3090 is a specialized C++20/CUDA inference engine for **Qwen3.8-27B** and Qwen3.6 on one
-24 GB NVIDIA GeForce RTX 3090. Qwen3.8-27B is a first-class, tested target: the native SM86
-runtime loads its official groupwise `.ninfer` artifact, serves OpenAI- and Anthropic-compatible
-APIs, and supports paged KV, compatible-prefix reuse, CUDA Graphs, MTP speculative decoding,
-reasoning-effort control, ReplaySSM state transactions, and concurrent cohorts through **C8**.
+**English** | [한국어](README.ko.md)
 
-Community project, maintained on a best-effort basis. Issues and PRs are very welcome, but support
-and feature requests are not guaranteed.
+NInfer SM86 addresses a hardware-compatibility gap: upstream NInfer targets Blackwell (`sm_120a`) and
+does not provide the Ampere `sm_86` build/runtime path maintained here. This fork carries that path
+to Ampere—including CUDA 12/13 Windows packages and Linux source builds—so owners of RTX 30-series/
+Ampere cards can run registered Qwen `.ninfer` models on one GPU. It is designed around bounded
+memory and request concurrency, not multi-GPU or datacenter-scale preemptive batching. The RTX 3090/
+3090 Ti is the primary measured device; results do not generalize automatically to lower-memory
+Ampere cards.
 
+The engine loads registered `.ninfer` artifacts and serves inference through one runtime. Supported
+model/weight identities are Qwen3.6-27B (groupwise-int, NVFP4), Qwen3.8-27B (groupwise-int,
+NVFP4), and Qwen3.6-35B-A3B (groupwise-int). The 35B-A3B target also supports text-only DFlash.
+All targets support text, vision, MTP where present in the artifact, prefix reuse, and the shared
+CLI/HTTP engine route.
 
+**Included runtime features:** paged BF16 or INT8 group-64 KV cache, bounded 1–8 request cohorts,
+CUDA Graph decode, compatible-prefix reuse, MTP speculative decoding, ReplaySSM state handling,
+image/video input on the supported vision route, and OpenAI Chat Completions/Responses plus
+Anthropic Messages APIs. Tool calls are returned to clients; NInfer does not execute tools.
 
-On an RTX 3090, Qwen3.8-27B supports a measured **171K-token INT8 context** with the standard
-1 GiB safety headroom.
+**Platform and qualification:** source builds are supported on Linux and Windows; the published
+v0.7.0-sm86 release provides Windows x64 archives for CUDA 12 and CUDA 13. CUDA 12.8+ and
+CMake 3.28+ are required to build from source. RTX 3090 results in this README are measurements for
+that device and the stated artifact/configuration, not guarantees for every Ampere GPU.
 
-> **RotorQuant `rk8v4` is temporarily unavailable.** Upstream moved KV quantization out of the
-> fused GQA attention kernels into a dedicated `kv_cache_append` Op whose contract defines K
-> rotation as H256 and V as unrotated BF16. The rk8v4 int4-V representation has not been ported
-> to that contract yet, so `--kv-dtype rk8v4` is rejected at startup. The previously published
-> 226K/248K RotorQuant context figures do not apply to this build. INT8 remains the default and
-> recommended quantized profile.
+This is a community fork of [Neroued/ninfer](https://github.com/Neroued/ninfer), adapted for
+SM86. Community contributions are welcome; maintenance and support are best-effort.
 
-This fork targets `sm_86`. Blackwell-only NVFP4/W4A4 and FP8 A8 tensor-core execution are
-unavailable. FP8 and NVFP4 *weights* are admitted through their A16 dequantizing routes, but the
-FP8 E4M3 *KV-cache* profile is not: its attention kernels have no SM86 implementation. 
+> **SM86 limits:** Blackwell-only NVFP4/W4A4 and FP8 A8 tensor-core execution are unavailable.
+> FP8/NVFP4 weights use supported A16 dequantizing routes. FP8 E4M3 KV and RotorQuant `rk8v4`
+> are not available; use BF16 or INT8 KV. No multi-GPU execution, CPU weight offload, or
+> unrestricted preemptive continuous batching.
 
-The goal is the make the utmost rippin Qwen inference stack for the 3000 series. Gladly taking PR's, all help much appreciated. 
+## Quick links
 
-Release notes for this branch: [v0.6.1](RELEASE_NOTES_0.6.1.md).
+- [한국어 안내](README.ko.md)
+- [Latest Windows release](https://github.com/doha-230/ninfer-sm86/releases/latest)
+- [Linux build and run guide](docs/rtx-3090-linux.md)
+- [Windows build and run guide](docs/rtx-3090-windows.md)
+- [CLI options](docs/cli.md) · [Serving APIs](docs/serving.md) · [Performance methodology](docs/performance.md)
+- [Release notes, v0.7.0-sm86 (English)](RELEASE_NOTES_0.7.0-sm86.md) · [한국어](RELEASE_NOTES_0.7.0-sm86.ko.md)
+
+On the measured RTX 3090 configuration, Qwen3.8-27B reaches a measured **171,648-token INT8
+context** with the documented 1 GiB safety headroom. Capacity depends on artifact, runtime options,
+driver, and other GPU allocations.
+
+> Historical RotorQuant measurements below describe an older build only. `rk8v4` is rejected by
+> the current KV-cache implementation; those results are not supported by the current runtime.
 
 ## Choose a platform
 
 | Platform | Delivery | Guide |
 |---|---|---|
-| Linux | Docker image or native source build | [Linux build guide](docs/rtx-3090-linux.md) |
-| Windows 11 | Prebuilt release archive | [Windows guide](docs/rtx-3090-windows.md) |
+| Linux | Docker image or native source build; no official prebuilt Linux release | [Linux build guide](docs/rtx-3090-linux.md) |
+| Windows 11 | v0.7.0-sm86 CUDA 12 / CUDA 13 archives | [Windows guide](docs/rtx-3090-windows.md) |
 
 ### Linux
 
@@ -50,7 +71,7 @@ results yet.
 
 ### Windows 11
 
-1. Download and unzip the latest [Windows release](https://github.com/Don-Chad/ninfer-3090/releases/latest).
+1. Download and unzip the latest [Windows release](https://github.com/doha-230/ninfer-sm86/releases/latest).
 2. Double-click `download-qwen38.bat` to download the model. Interrupted downloads resume.
 3. Double-click one launcher:
 
@@ -64,7 +85,18 @@ results yet.
 The API is then available at `http://127.0.0.1:8080/v1`. The Windows archive includes the required
 applications and DLLs.
 
-## Qwen3.8-27B support and RTX 3090 results
+## RTX 3090 performance reference — historical builds
+
+**Read this qualification note first:** the throughput, capacity, and vision figures in the following
+sections were measured on earlier SM86 builds and named artifacts/configurations. They are useful as
+historical reference points, not as a requalification of the current post-upstream-sync source tree
+or of every v0.7.0-sm86 release archive. No GPU-backed CI runner is currently registered.
+
+For the current build, use the release-specific hardware notes and reproduce measurements with the
+commands/methodology in [performance documentation](docs/performance.md). Do not infer that a
+feature or number is qualified merely because the current source compiles.
+
+### Qwen3.8-27B support and RTX 3090 results
 
 Qwen3.8-27B is validated from one through eight simultaneous users. ReplaySSM cuts the memory cost
 of speculative decoding, allowing the faster MTP3 mode to remain enabled at C8. The table below is
@@ -180,41 +212,43 @@ still use MTP3 as documented above.
 - Qwen3.6-35B image understanding with a guarded 32K profile.
 - Windows one-user and eight-user launchers with safe tested defaults.
 
-## Supported artifacts
+## Registered model and weight identities
 
-| Model | Artifact | Size | Notes |
-|---|---|---:|---|
-| Qwen3.6-35B-A3B v1 | [pinned compact artifact](https://huggingface.co/neroued/Qwen3.6-35B-A3B-NInfer/tree/c8b8c1c0df4c74df3c190c6aa3a7f24dc614721c) | 20.84 GiB | **Recommended for RTX 3090; text C1-C6 at 4K and vision C1 at 32K** |
-| Qwen3.6-35B-A3B v2 | [current upstream artifact](https://huggingface.co/neroued/Qwen3.6-35B-A3B-NInfer) | 21.22 GiB | Reader supported by v0.5+; includes DFlash payload and is not the measured 3090 artifact |
-| Qwen3.6-27B | [groupwise artifact](https://huggingface.co/neroued/Qwen3.6-27B-NInfer) | 16.29 GiB | Supported with more runtime headroom |
-| **Qwen3.8-27B** | [official NInfer groupwise artifact](https://huggingface.co/neroued/Qwen3.8-27B-NInfer) | 16.96 GiB | **Validated at C1, C2, C4 and C8/MTP3 with ReplaySSM** |
+The current source registers these exact `.ninfer` identities. Weight format is not a model
+capability guarantee: test artifact identity, target support, and available GPU memory together.
 
-NInfer-3090 v0.5 and newer recognize both v1 and v2 container magic. The current 21.22 GiB v2
-artifact contains additional DFlash weights and is not the artifact used for the published RTX
-3090 concurrency results. The pinned compact v1 artifact keeps the measured model payload and
-omits DFlash, providing the known 24 GB memory profile.
+| Model | Weight identity | Notes |
+|---|---|---|
+| Qwen3.6-27B | `groupwise-int`, `nvfp4` | Text and vision |
+| Qwen3.8-27B | `groupwise-int`, `nvfp4` | Text and vision |
+| Qwen3.6-35B-A3B | `groupwise-int` | Text/vision; DFlash is text-only |
 
-## Models and platform support
+Model cards and artifact inventories: [Qwen3.6-27B groupwise](model-cards/Qwen3.6-27B-NInfer/README.md),
+[Qwen3.6-27B NVFP4](model-cards/Qwen3.6-27B-nvfp4-NInfer/README.md),
+[Qwen3.8-27B groupwise](model-cards/Qwen3.8-27B-NInfer/README.md),
+[Qwen3.8-27B NVFP4](model-cards/Qwen3.8-27B-nvfp4-NInfer/README.md), and
+[Qwen3.6-35B-A3B](model-cards/Qwen3.6-35B-A3B-NInfer/README.md).
 
-Linux users build the applications from source or use the Docker image. Windows users can use the
-prebuilt archive, which includes the applications and required DLLs. Both platforms require an
-RTX 3090 or RTX 3090 Ti and a recent NVIDIA driver.
+Older container-v1/v2 download-size and measurement notes below refer to named legacy artifacts.
+They do not redefine the current registered target/weight identity list above.
 
-Download the [official Qwen3.8 artifact](https://huggingface.co/neroued/Qwen3.8-27B-NInfer) as
-`models/qwen3_8_27b.ninfer`. Windows users can run `download-qwen38.bat` instead.
+## Download and build
 
-For Qwen3.6-35B-A3B, the smaller
-[pinned container-v1 artifact](https://huggingface.co/neroued/Qwen3.6-35B-A3B-NInfer/tree/c8b8c1c0df4c74df3c190c6aa3a7f24dc614721c)
-is recommended on a 24 GB card. Releases v0.5 and newer also read the larger container-v2 file.
-An `artifact magic is not NInfer version 1` message means the executable is outdated, not that the
-current model download is necessarily corrupt.
+The official `.ninfer` model artifacts are published separately; the Windows release archives do
+not bundle model weights. Use the five model cards in [Registered model and weight identities](#registered-model-and-weight-identities)
+to choose an artifact compatible with the source/runtime. Windows users can also use the model
+launcher scripts included in the release archive.
 
-Developers can build from source on Windows or Linux. Windows uses Visual Studio 2022 and vcpkg.
+The runtime targets `sm_86`. RTX 3090/3090 Ti are the main measured devices; other Ampere cards may
+have less memory, so verify model fit and concurrency before choosing a profile. A recent NVIDIA
+driver is required.
+
+Developers can build from source on Windows or Linux. Windows uses Visual Studio 2022 and vcpkg;
 Linux uses GCC 13 with system packages or the pinned vcpkg manifest. Both builds require CUDA 12.8
-or newer and CMake 3.28 or newer.
+or newer and CMake 3.28 or newer. Linux has no prebuilt release archive; use Docker or build natively.
 
-See the [Windows build guide](docs/rtx-3090-windows.md) or the
-[Linux build guide](docs/rtx-3090-linux.md). Ordinary Windows release users do not need these tools.
+See the [Windows build guide](docs/rtx-3090-windows.md) or [Linux build guide](docs/rtx-3090-linux.md).
+Ordinary Windows release users do not need the development toolchain.
 
 ## Qwen3.8 reasoning effort
 
@@ -273,26 +307,26 @@ a 24 GB card and the server can reuse fast CUDA Graphs instead of rebuilding wor
 
 ## Current limits
 
-- One process owns one model on one RTX 3090.
-- Concurrency is fixed at startup and limited to 1-8 by the API; compact 35B fits C1-C6 and
-  Qwen3.8-27B fits C8/8K with MTP3 through ReplaySSM.
+The runtime targets one CUDA GPU and one resident model; the RTX 3090 is the primary measured device.
+- Concurrency is bounded at startup to 1–8 requests. Earlier measurements found compact 35B profiles at C1–C6 and Qwen3.8-27B C8/8K with MTP3; those figures are historical and not a current-build qualification.
 - The shared KV pool is fixed at startup and is not divided statically among request lanes.
 - This is bounded small-scale batching, not preemptive large-scale continuous batching.
-- No multi-GPU execution or CPU/GPU weight offload.
+- No multi-GPU execution or CPU weight offload.
 - Tool calls are returned to the client but are not executed by NInfer.
-- NVFP4 A4, FP8 A8, and TMA kernels require Blackwell and are unavailable on SM86. FP8 and NVFP4
-  weights are admitted through their A16 dequantizing routes.
-- The paged runtime exposes BF16 and INT8 group-64 KV; INT8 remains the quality-default path.
-  Upstream's row-scaled FP8 E4M3 KV profile and `rk8v4` both parse but are rejected on SM86.
+- Blackwell-only NVFP4/W4A4 and FP8 A8 tensor-core execution is unavailable on SM86; FP8/NVFP4 weights use supported A16 dequantizing routes.
+- The paged runtime exposes BF16 and INT8 group-64 KV; INT8 remains the quality-default path. FP8 E4M3 KV and `rk8v4` are rejected on SM86.
 
-## Validation
+## Current verification
 
-The v0.6.0 Windows gate covered Qwen3.8 generation, materialization, request memory, admission,
-paged KV, prefix reuse, speculative rounds, and SM86 W8 Linear paths.
+The GitHub Actions workflow on the `ci/github-actions-sm86` update has passed the Python suites and
+configured a CUDA 12.8 `sm_86` build that compiled every product and test target. Its GPU CTest job
+was skipped because this repository has no self-hosted GPU runner registered. This is compile and
+host-test evidence, not a claim that CUDA kernels were executed on a device. Check the
+[Actions page](https://github.com/doha-230/ninfer-sm86/actions) for the latest run.
 
-The v0.6.1 Linux source gate completed all 245 Docker compile and link steps with CUDA 13.1 on
-Ubuntu 24.04. Both Linux applications returned their `--help` output with GPU access enabled.
-A real-artifact Linux generation and Linux performance qualification remain open.
+Earlier release gates and device measurements below are retained as historical evidence for the
+specific versions, machines, artifacts, and commands stated there. They are not current-tree GPU
+qualification.
 
 ## Upstream
 
