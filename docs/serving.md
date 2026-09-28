@@ -33,9 +33,10 @@ Other artifacts use the same command shape with their own path. For 35B-A3B text
 replace the MTP selection with `--spec dflash --draft-tokens 7 --lm-head-draft`; DFlash cannot be
 combined with `--vision`.
 
-When `--model-id` is omitted, the server advertises and accepts the loaded container's exact
-`identity.model_id`. An explicit `--model-id` remains a public HTTP alias override and does not
-select or alter the artifact.
+When `--model-id` is omitted, the server advertises the loaded container's exact
+`identity.model_id`. An explicit `--model-id` changes the advertised public identity, not the
+loaded artifact. The OpenAI generation and input-token endpoints accept other non-empty client
+model names as aliases for the single resident model; responses report the public identity.
 
 Vision is disabled by default: its weights and Vision-specific unified-workspace extent are not
 allocated, and media requests and token-count requests fail with HTTP 400 `vision_disabled`. Add
@@ -43,6 +44,17 @@ allocated, and media requests and token-count requests fail with HTTP 400 `visio
 frozen by `--spec mtp|dflash` and `--draft-tokens`; omitting `--spec` loads neither backend.
 `--lm-head-draft` additionally loads the optimized proposal head. DFlash is 35B-A3B text-only and
 cannot be combined with `--vision`. A later request cannot enable a capability omitted at startup.
+
+To use a local chat template without changing the `.ninfer` artifact, add
+`--chat-template /path/to/chat_template.jinja` to the server command. The file is read and parsed
+once at startup; no URL fetch is performed, so it can be copied onto an offline host first.
+The embedded tokenizer and its original template are still validated before this file replaces
+the renderer. An unreadable or invalid file prevents startup. With `--vision` enabled, a custom
+template may render image/video placeholders in input order; missing, duplicated, reordered, or
+transformed placeholders are rejected rather than attaching media to the wrong token. Explicit
+context-cache markers without exact rendered boundaries cannot be used. The server does not accept arbitrary
+`chat_template_kwargs` (such as `terse` or `tool_call_format`); templates use their own defaults.
+Tool-call formatting must match NInfer's XML decoder.
 
 ## Endpoints
 
@@ -143,9 +155,10 @@ server-error codes. Failures in the normalized prompt contract use `invalid_prom
 and availability failures retain their dedicated codes. Internal invariant failures are not
 relabeled as client input errors.
 
-The request `model` must equal the public model ID: the artifact `identity.model_id` by default, or
-the explicit `--model-id` override. Reasoning is returned separately as `reasoning_content`; answer
-text remains in `content`.
+The required non-empty request `model` is accepted as an alias for the single resident model;
+the response reports the public model ID (the artifact identity or `--model-id` override).
+This does not select a different artifact. Reasoning is returned separately as
+`reasoning_content`; answer text remains in `content`.
 
 Across Chat Completions, Responses, and Anthropic Messages, an explicit top-level tool-parameter
 type controls conversion of Qwen's untyped parameter text. String-admitting values remain strings;
@@ -290,7 +303,7 @@ wire response contains typed `output` Items.
 
 | Field | NInfer Responses Core contract |
 |---|---|
-| `model` | required non-empty string; must equal the artifact-derived public model ID or explicit `--model-id` override |
+| `model` | required non-empty string; accepted as an alias for the single resident model; responses report the public model ID |
 | `input` | string or typed Item array; it may be omitted or empty only when `previous_response_id` already supplies a user query |
 | `instructions` | optional string, inserted before the reconstructed conversation for this request only |
 | `previous_response_id` | optional ID of a retained local Response |
@@ -632,6 +645,7 @@ The table lists executable defaults. The startup example selects a long-context 
 | `--port N` | listen port | `8080` |
 | `--api-key KEY` | required bearer or `x-api-key` value | unset |
 | `--model-id ID` | override the public OpenAI model alias | artifact `identity.model_id` |
+| `--chat-template FILE` | local Jinja chat template read at startup (Vision needs `--vision`) | embedded artifact template |
 | `--max-context N` | logical context ceiling of each sequence | `8192` |
 | `--kv-capacity N\|auto` | explicit shared Main Text KV capacity, or maximize it from remaining GPU memory; omitted means `--max-context` | `8192` |
 | `--max-concurrency N` | maximum admitted requests; valid range `1..8` | `1` |

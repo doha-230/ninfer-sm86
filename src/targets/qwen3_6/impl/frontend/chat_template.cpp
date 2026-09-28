@@ -1,12 +1,14 @@
 #include "targets/qwen3_6/impl/frontend/chat_template.h"
 
 #include "targets/qwen3_6/impl/frontend/digest.h"
+#include "text/jinja.h"
 
 #include <nlohmann/json.hpp>
 
 #include <algorithm>
 #include <array>
 #include <cctype>
+#include <limits>
 #include <stdexcept>
 #include <string>
 #include <string_view>
@@ -363,6 +365,215 @@ std::string_view resolve_reasoning_instructions(ChatTemplateSemantics semantics,
     throw std::invalid_argument("invalid reasoning effort");
 }
 
+RenderedChat render_custom_jinja(const text::JinjaTemplate& jinja,
+                                 const std::vector<ChatMessage>& messages,
+                                 const ChatRenderOptions& options) {
+    OrderedJson context;
+    context["messages"] = OrderedJson::array();
+    OrderedJson shadow;
+    shadow["messages"] = OrderedJson::array();
+    struct MediaOrigin {
+        Modality modality;
+        std::size_t index;
+        std::string shadow_text;
+        std::size_t pad_begin;
+        std::string_view pad;
+    };
+    std::vector<MediaOrigin> media;
+    std::vector<text::TemplateInputRegion> regions;
+    std::size_t image_count = 0;
+    std::size_t video_count = 0;
+    for (const ChatMessage& message : messages) {
+        const std::size_t message_index = context["messages"].size();
+        if (message.has_media() && is_instruction_role(message.role)) {
+            throw std::invalid_argument("system and developer messages cannot contain images or videos");
+        }
+        OrderedJson value;
+        switch (message.role) {
+        case ChatRole::System: value["role"] = "system"; break;
+        case ChatRole::Developer: value["role"] = "developer"; break;
+        case ChatRole::User: value["role"] = "user"; break;
+        case ChatRole::Assistant: value["role"] = "assistant"; break;
+        case ChatRole::Tool: value["role"] = "tool"; break;
+        default: throw std::invalid_argument("unsupported chat role value");
+        }
+        if (!message.has_media()) {
+            std::string content;
+            for (const ChatPart& part : message.parts) { content += part.text; }
+            value["content"] = std::move(content);
+        } else {
+            value["content"] = OrderedJson::array();
+            for (const ChatPart& part : message.parts) {
+                if (part.kind == ChatPartKind::Text) {
+                    value["content"].push_back({{"type", "text"}, {"text", part.text}});
+                } else {
+                    value["content"].push_back(
+                        {{"type", part.kind == ChatPartKind::Image ? "image" : "video"}});
+                }
+            }
+        }
+        if (!message.reasoning_content.empty()) {
+            value["reasoning_content"] = message.reasoning_content;
+        }
+        if (!message.tool_call_id.empty()) { value["tool_call_id"] = message.tool_call_id; }
+        if (!message.tool_calls.empty()) {
+            value["tool_calls"] = OrderedJson::array();
+            for (const ToolCall& call : message.tool_calls) {
+                value["tool_calls"].push_back(
+                    {{"id", call.id}, {"type", "function"},
+                     {"function", {{"name", call.name},
+                                   {"arguments", OrderedJson::parse(call.arguments_json)}}}});
+            }
+        }
+        context["messages"].push_back(value);
+        if (message.has_media()) {
+            OrderedJson shadow_value = std::move(value);
+            for (std::size_t part_index = 0; part_index < message.parts.size(); ++part_index) {
+                const ChatPart& part = message.parts[part_index];
+                if (part.kind == ChatPartKind::Text) { continue; }
+                if (media.size() >= std::numeric_limits<std::uint32_t>::max()) {
+                    throw std::invalid_argument("too many chat media items");
+                }
+                const bool image = part.kind == ChatPartKind::Image;
+                const std::size_t number = image ? ++image_count : ++video_count;
+                const std::string_view pad = image ? "<|image_pad|>" : "<|video_pad|>";
+                std::string prefix;
+                if (options.add_vision_id) {
+                    prefix = std::string(image ? "Picture " : "Video ") +
+                             std::to_string(number) + ": ";
+                }
+                const std::size_t pad_begin = prefix.size() + std::string_view("<|vision_start|>").size();
+                const std::uint32_t tag = static_cast<std::uint32_t>(media.size() + 1);
+                media.push_back({image ? Modality::Image : Modality::Video, media.size(),
+                                 prefix + "<|vision_start|>" + std::string(pad) + "<|vision_end|>",
+                                 pad_begin, pad});
+                shadow_value["content"][part_index] =
+                    {{"type", "text"}, {"text", media.back().shadow_text}};
+                regions.push_back({"/messages/" + std::to_string(message_index) + "/content/" +
+                                       std::to_string(part_index) + "/text", tag});
+            }
+            shadow["messages"].push_back(std::move(shadow_value));
+        } else {
+            shadow["messages"].push_back(std::move(value));
+        }
+    }
+    context["add_vision_id"] = options.add_vision_id;
+    context["add_generation_prompt"] = options.add_generation_prompt &&
+        options.continuation != PromptContinuationMode::ContinueFinalAssistant;
+    context["enable_thinking"] = options.enable_thinking;
+    context["preserve_thinking"] = options.preserve_thinking.value_or(false);
+    if (options.reasoning_effort) {
+        switch (*options.reasoning_effort) {
+        case ReasoningEffort::Low: context["reasoning_effort"] = "low"; break;
+        case ReasoningEffort::Medium: context["reasoning_effort"] = "medium"; break;
+        case ReasoningEffort::XHigh: context["reasoning_effort"] = "xhigh"; break;
+        }
+    }
+    context["tools"] = OrderedJson::array();
+    for (const std::string& tool : options.tool_jsons) {
+        context["tools"].push_back(OrderedJson::parse(tool));
+    }
+    const text::TemplateOutput output = jinja.render(context);
+    RenderedChat result;
+    result.text = output.text;
+    for (const text::ByteSpan span : output.literal_spans) {
+        result.literal_spans.push_back({span.begin, span.end});
+    }
+    if (!media.empty()) {
+        // The real template may emit a constant vision marker rather than echo a tagged
+        // input field (as Qwen-Sharp does). Render a second, equivalent text-only context:
+        // each media item becomes its exact expected output, with its own input-origin tag.
+        // Only identical output and intact, ordered tagged bytes establish provenance.
+        for (auto it = context.begin(); it != context.end(); ++it) {
+            if (it.key() != "messages") { shadow[it.key()] = it.value(); }
+        }
+        text::TemplateRenderOptions shadow_options;
+        shadow_options.regions = regions;
+        const text::TemplateOutput traced = jinja.render(shadow, shadow_options);
+        if (traced.text != output.text) {
+            throw std::invalid_argument("chat template transformed or omitted media placeholders");
+        }
+        std::vector<std::vector<std::optional<std::size_t>>> positions;
+        for (const MediaOrigin& origin : media) { positions.emplace_back(origin.shadow_text.size()); }
+        for (const text::TemplateOutputRegion& region : traced.regions) {
+            if (region.tag == 0 || region.tag > media.size() || !region.source_offset ||
+                region.end > traced.text.size() || region.begin > region.end) {
+                throw std::invalid_argument("chat template lost media placeholder provenance");
+            }
+            const std::size_t index = region.tag - 1;
+            const MediaOrigin& origin = media[index];
+            const std::size_t length = region.end - region.begin;
+            if (*region.source_offset > origin.shadow_text.size() ||
+                length > origin.shadow_text.size() - *region.source_offset ||
+                traced.text.compare(region.begin, length, origin.shadow_text,
+                                    *region.source_offset, length) != 0) {
+                throw std::invalid_argument("chat template transformed a media placeholder");
+            }
+            for (std::size_t offset = 0; offset < length; ++offset) {
+                const std::size_t source = *region.source_offset + offset;
+                if (positions[index][source]) {
+                    throw std::invalid_argument("chat template duplicated a media placeholder");
+                }
+                positions[index][source] = region.begin + offset;
+            }
+        }
+        for (std::size_t index = 0; index < media.size(); ++index) {
+            const MediaOrigin& origin = media[index];
+            const auto& bytes = positions[index];
+            const std::size_t begin = origin.pad_begin;
+            const std::size_t end = begin + origin.pad.size();
+            if (end > bytes.size() || !bytes[begin]) {
+                throw std::invalid_argument("chat template omitted a media placeholder");
+            }
+            // Require the entire marker and its framing (including optional vision id)
+            // from the same item, once, without rearrangement or internal insertion.
+            const std::size_t whole_begin = *bytes.front();
+            for (std::size_t offset = 0; offset < bytes.size(); ++offset) {
+                if (!bytes[offset] || *bytes[offset] != whole_begin + offset) {
+                    throw std::invalid_argument("chat template transformed or duplicated media");
+                }
+            }
+            const std::size_t pad_at = *bytes[begin];
+            if (!result.media_placeholders.empty() &&
+                result.media_placeholders.back().bytes.end > pad_at) {
+                throw std::invalid_argument("chat template reordered media placeholders");
+            }
+            result.media_placeholders.push_back({{pad_at, pad_at + origin.pad.size()},
+                                                 origin.modality, origin.index});
+        }
+        // An untagged template-owned pad is not another media item. Reject it rather
+        // than handing a raw vision marker to tokenization; user text is literal.
+        for (const std::string_view pad : {std::string_view("<|image_pad|>"),
+                                           std::string_view("<|video_pad|>")}) {
+            std::size_t cursor = 0;
+            while ((cursor = result.text.find(pad, cursor)) != std::string::npos) {
+                const bool mapped = std::any_of(result.media_placeholders.begin(),
+                                                result.media_placeholders.end(),
+                                                [&](const MediaPlaceholderByteSpec& item) {
+                                                    return item.bytes.begin == cursor &&
+                                                           item.bytes.end == cursor + pad.size();
+                                                });
+                const bool literal = std::any_of(result.literal_spans.begin(),
+                                                 result.literal_spans.end(),
+                                                 [&](ByteSpan span) {
+                                                     return span.begin <= cursor &&
+                                                            cursor + pad.size() <= span.end;
+                                                 });
+                if (!mapped && !literal) {
+                    throw std::invalid_argument("chat template emitted an unowned media marker");
+                }
+                cursor += pad.size();
+            }
+        }
+    }
+    // Arbitrary templates can reorder/transform messages. There is no generally valid byte
+    // frontier for incremental caching or turn rewrite; leave those hints unresolved rather
+    // than claiming a prefix that may change when another message is appended.
+    result.message_boundaries.resize(messages.size() + 1U);
+    result.cache_boundaries.resize(options.cache_markers.size());
+    return result;
+}
+
 } // namespace
 
 bool ChatMessage::has_media() const noexcept {
@@ -419,11 +630,43 @@ CompiledChatTemplate CompiledChatTemplate::resolve(std::string_view source) {
     if (digest == kReasoningEffortTemplateDigest) {
         return CompiledChatTemplate(ChatTemplateSemantics::ReasoningEffort);
     }
-    throw std::invalid_argument("unsupported frontend/chat_template.jinja (sha256 " +
-                                sha256_hex(digest) + ")");
+    auto jinja = std::make_shared<const text::JinjaTemplate>(
+        std::string(source), "frontend/chat_template.jinja");
+    PromptCapabilities capabilities;
+    if (source.find("reasoning_effort") != std::string_view::npos) {
+        // No general introspection can prove an arbitrary Jinja template uses a variable.
+        // Advertise effort only if the parsed template demonstrably distinguishes all
+        // three supplied levels on a representative user turn. Probe once at load time.
+        try {
+            ChatMessage probe;
+            probe.parts.push_back(ChatPart::text_part("hello"));
+            ChatRenderOptions options;
+            options.reasoning_effort = ReasoningEffort::Low;
+            const std::string low = render_custom_jinja(*jinja, {probe}, options).text;
+            options.reasoning_effort = ReasoningEffort::Medium;
+            const std::string medium = render_custom_jinja(*jinja, {probe}, options).text;
+            options.reasoning_effort = ReasoningEffort::XHigh;
+            const std::string xhigh = render_custom_jinja(*jinja, {probe}, options).text;
+            if (low != medium && low != xhigh && medium != xhigh) {
+                capabilities.reasoning_effort.low = true;
+                capabilities.reasoning_effort.medium = true;
+                capabilities.reasoning_effort.xhigh = true;
+                capabilities.reasoning_effort.default_effort = ReasoningEffort::Medium;
+            }
+        } catch (const std::invalid_argument&) {
+            // A template requiring a different conversation may still render normally;
+            // do not assert effort support based on a probe it could not complete.
+        }
+    }
+    return CompiledChatTemplate(std::move(jinja), capabilities);
 }
 
 PromptCapabilities CompiledChatTemplate::capabilities() const noexcept {
+    if (semantics_ == ChatTemplateSemantics::CustomJinja) {
+        PromptCapabilities result = custom_capabilities_;
+        result.enable_thinking = true;
+        return result;
+    }
     PromptCapabilities result;
     result.enable_thinking = true;
     if (semantics_ == ChatTemplateSemantics::ReasoningEffort) {
@@ -438,6 +681,9 @@ PromptCapabilities CompiledChatTemplate::capabilities() const noexcept {
 RenderedChat CompiledChatTemplate::render(const std::vector<ChatMessage>& messages,
                                           ChatRenderOptions options) const {
     if (messages.empty()) { throw std::invalid_argument("chat messages must not be empty"); }
+    if (semantics_ == ChatTemplateSemantics::CustomJinja) {
+        return render_custom_jinja(*jinja_, messages, options);
+    }
 
     const bool continue_final_assistant =
         options.continuation == PromptContinuationMode::ContinueFinalAssistant;

@@ -19,6 +19,8 @@
 #include <cctype>
 #include <cstddef>
 #include <cstdint>
+#include <fstream>
+#include <iterator>
 #include <limits>
 #include <memory>
 #include <optional>
@@ -224,8 +226,22 @@ void validate_tokenizer_config(const FrontendResources& resources) {
     }
 }
 
-fi::CompiledChatTemplate compile_chat_template(const FrontendResources& resources) {
+fi::CompiledChatTemplate compile_chat_template(const FrontendResources& resources,
+                                               const std::filesystem::path& override_path) {
     validate_tokenizer_config(resources);
+    if (!override_path.empty()) {
+        std::ifstream stream(override_path, std::ios::binary);
+        if (!stream) {
+            throw std::invalid_argument("failed to open --chat-template file: " +
+                                        override_path.string());
+        }
+        std::string source(std::istreambuf_iterator<char>{stream}, std::istreambuf_iterator<char>{});
+        if (!stream.eof() && stream.fail()) {
+            throw std::invalid_argument("failed to read --chat-template file: " +
+                                        override_path.string());
+        }
+        return fi::CompiledChatTemplate::resolve(source);
+    }
     return fi::CompiledChatTemplate::resolve(resources.chat_template_jinja);
 }
 
@@ -832,7 +848,7 @@ prepare_context_cache(ContextCacheHints hints, std::size_t message_count,
 class Frontend::Impl {
 public:
     Impl(const FrontendResources& resources, bool registered_checkpoint, FrontendOptions options)
-        : chat_template(compile_chat_template(resources)),
+        : chat_template(compile_chat_template(resources, options.chat_template_path)),
           tokenizer(std::make_shared<const fi::Tokenizer>(
               fi::TokenizerResources{.tokenizer_json         = resources.tokenizer_json,
                                      .tokenizer_config_json  = resources.tokenizer_config_json,

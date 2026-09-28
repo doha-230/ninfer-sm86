@@ -7,10 +7,13 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <memory>
 #include <optional>
 #include <string>
 #include <utility>
 #include <vector>
+
+namespace ninfer::text { class JinjaTemplate; }
 
 namespace ninfer::targets::qwen3_6::frontend_internal {
 
@@ -133,6 +136,7 @@ struct RenderedChat {
 enum class ChatTemplateSemantics : std::uint8_t {
     ThinkingToggle,
     ReasoningEffort,
+    CustomJinja,
 };
 
 class CompiledChatTemplate {
@@ -146,8 +150,14 @@ public:
 private:
     explicit CompiledChatTemplate(ChatTemplateSemantics semantics) noexcept
         : semantics_(semantics) {}
+    explicit CompiledChatTemplate(std::shared_ptr<const text::JinjaTemplate> jinja,
+                                  PromptCapabilities capabilities) noexcept
+        : semantics_(ChatTemplateSemantics::CustomJinja), jinja_(std::move(jinja)),
+          custom_capabilities_(capabilities) {}
 
     ChatTemplateSemantics semantics_;
+    std::shared_ptr<const text::JinjaTemplate> jinja_;
+    PromptCapabilities custom_capabilities_;
 };
 
 } // namespace ninfer::targets::qwen3_6::frontend_internal

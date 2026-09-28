@@ -17,7 +17,7 @@ std::string make_model_object(const std::string& model_id, std::int64_t created,
 std::string make_error_body(const ApiError& error);
 std::int64_t unix_time_now();
 
-void validate_openai_model(std::string_view requested, std::string_view available);
+std::string resolve_openai_model(std::string_view requested, std::string_view available);
 
 std::string new_openai_chat_completion_id();
 std::string new_openai_chat_tool_call_id();

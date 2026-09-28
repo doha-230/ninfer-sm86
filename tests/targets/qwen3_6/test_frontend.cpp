@@ -1075,10 +1075,22 @@ int test_official_resource_guards() {
         check(throws_invalid_argument([&] { (void)FrontendFactory::create_component(mismatched); }),
               "different standalone and tokenizer-config chat templates were accepted");
 
-    FrontendResources unknown = resources("{{ messages }}");
+    ninfer::targets::qwen3_6::FrontendOptions override_options;
+    override_options.chat_template_path =
+        NINFER_SOURCE_DIR "/tests/fixtures/frontend/missing_chat_template.jinja";
+    failures += check(throws_invalid_argument([&] {
+                          (void)FrontendFactory::create_component(resources(), override_options);
+                      }), "nonexistent local chat template was accepted");
+    override_options.chat_template_path =
+        NINFER_SOURCE_DIR "/tests/fixtures/frontend/reasoning_effort_chat_template.jinja";
+    const Frontend overridden = FrontendFactory::create_component(resources(), override_options);
+    failures += check(overridden.prompt_capabilities().reasoning_effort.xhigh,
+                      "local chat template did not override the embedded template");
+
+    FrontendResources malformed = resources("{% for message in messages %}");
     failures +=
-        check(throws_invalid_argument([&] { (void)FrontendFactory::create_component(unknown); }),
-              "unknown chat template was accepted");
+        check(throws_invalid_argument([&] { (void)FrontendFactory::create_component(malformed); }),
+              "malformed custom chat template was accepted");
 
     const Frontend effort_frontend =
         FrontendFactory::create_component(resources(reasoning_effort_template_source()), false);
@@ -1089,6 +1101,35 @@ int test_official_resource_guards() {
                   capabilities.reasoning_effort.default_effort == ninfer::ReasoningEffort::XHigh,
               "Frontend did not expose capabilities from its loaded chat template");
 
+    return failures;
+}
+
+int test_local_chat_template_image_prepare() {
+    ninfer::targets::qwen3_6::FrontendOptions options;
+    options.chat_template_path =
+        NINFER_SOURCE_DIR "/tests/fixtures/frontend/custom_vision_chat_template.jinja";
+    const Frontend frontend = FrontendFactory::create_component(resources(), options);
+    ninfer::PromptInput input = image_input();
+    input.messages.front().parts.insert(
+        input.messages.front().parts.begin(),
+        ninfer::MessagePart{.kind = ninfer::MessagePartKind::Text,
+                            .text = "literal <|image_pad|> ", .media = {}});
+    const std::uint32_t counted = frontend.count_tokens(input);
+    const auto prompt = frontend.prepare(std::move(input));
+    const auto& prepared = FrontendFactory::inspect(prompt);
+    int failures = check(prepared.has_media() && prepared.vision_items.size() == 1 &&
+                             prepared.media_payloads.size() == 1 &&
+                             prepared.token_ids.size() == counted,
+                         "local chat template did not prepare an image prompt");
+    if (!prepared.vision_items.empty()) {
+        const auto& image = prepared.vision_items.front();
+        failures += check(image.patch_count == 16 && image.token_spans.size() == 1 &&
+                              image.token_spans.front().count == 4 &&
+                              std::count(prepared.token_ids.begin(), prepared.token_ids.end(),
+                                         248056) == 4,
+                          "local chat template did not align image patches and tokens or "
+                          "mistook literal text for an image");
+    }
     return failures;
 }
 
@@ -2218,6 +2259,7 @@ int main() {
     failures += test_reasoning_effort_chat_template();
     failures += test_rewrite_checkpoint_trace();
     failures += test_official_resource_guards();
+    failures += test_local_chat_template_image_prepare();
     failures += test_invalid_public_part_enums(frontend);
     failures += test_text_and_image_prepare(frontend);
     failures += test_image_resize_rejection_policy();

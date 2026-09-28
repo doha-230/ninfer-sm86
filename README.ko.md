@@ -11,6 +11,8 @@ Ampere GPU(Compute Capability **8.6**)에서 지원 Qwen `.ninfer` 모델을 실
 [Don-Chad/ninfer-3090](https://github.com/Don-Chad/ninfer-3090)은 이미 RTX 3090용 `sm_86` Qwen 추론, Windows·Linux 바이너리, 주요 서버 기능을 제공했습니다. 이 포크가 해당 기능을 처음 구현했다고 주장하지 않습니다.[1][2] 이 저장소에서 추가로 해결한 실용적 과제는 다음과 같습니다.
 
 - **CUDA 12와 CUDA 13용 Windows x64 릴리스 아카이브를 분리**해 드라이버 환경에 맞는 패키지를 선택할 수 있게 했습니다.[4]
+- 설정된 요청 본문 제한보다 먼저 HTTP 413을 내던 form-urlencoded의 별도 8 KiB 제한을 제거했습니다. 설정된 일반 용량 제한은 유지합니다. OpenAI 클라이언트는 단일 탑재 모델에 대해 비어 있지 않은 별칭을 보낼 수 있고, 응답에는 서버의 공개 모델 ID를 사용합니다.
+- `ninfer-serve --chat-template FILE`로 로컬 Jinja 템플릿을 아티팩트 수정 없이 사용합니다. 비전에는 `--vision`과 이미지·비디오 자리표시자를 원래 입력 순서대로 출력하는 템플릿이 필요하며, 정확한 위치를 알 수 없는 캐시 마커는 거절합니다.
 - GitHub 호스팅 러너에서 **Python 테스트와 CUDA 12.8 `sm_86` 전체 빌드**를 검사합니다. GPU CTest는 사용할 수 있는 self-hosted GPU runner가 있을 때만 실행됩니다. 이는 GPU 실행 검증과 다릅니다.
 - **RTX A6000(Ampere, `sm_86`) 동작을 사용자로부터 확인**했습니다. A6000 전용 커널, 성능 수치 또는 모든 모델·설정 조합의 검증을 뜻하지는 않습니다.
 

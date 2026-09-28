@@ -72,15 +72,9 @@ std::int64_t unix_time_now() {
         .count();
 }
 
-void validate_openai_model(std::string_view requested, std::string_view available) {
-    if (requested == available) { return; }
-    ApiError error;
-    error.status  = 404;
-    error.type    = "invalid_request_error";
-    error.param   = "model";
-    error.code    = "model_not_found";
-    error.message = "model '" + std::string(requested) + "' not found";
-    throw ApiException(std::move(error));
+std::string resolve_openai_model(std::string_view, std::string_view available) {
+    // One model is resident. Accept client aliases but always publish the loaded identity.
+    return std::string(available);
 }
 
 std::string new_openai_chat_completion_id() { return chat_identifier("chatcmpl-"); }

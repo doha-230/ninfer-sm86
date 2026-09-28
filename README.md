@@ -11,6 +11,8 @@ Run supported Qwen `.ninfer` models on Ampere GPUs with compute capability **8.6
 [Don-Chad/ninfer-3090](https://github.com/Don-Chad/ninfer-3090) already brought Qwen inference to `sm_86`, including RTX 3090 builds, Windows and Linux binaries, and the main serving features. This fork does not claim those as new inventions.[1][2] Its additional practical work is:
 
 - Separate **CUDA 12 and CUDA 13 Windows x64 release archives**, so users can select a package for their driver environment.[4]
+- Remove the independent 8 KiB form-urlencoded body cap that returned HTTP 413 below the configured request limit; the configured payload limit remains enforced. OpenAI clients may use a non-empty model alias for the single resident model, while responses report its public identity.
+- Render custom Jinja chat templates from a local file via `ninfer-serve --chat-template FILE`, without changing the artifact. Vision requires `--vision` and a template that emits image/video placeholders in the original order; unresolved exact cache markers are rejected.
 - GitHub-hosted **Python tests and a complete CUDA 12.8 `sm_86` compile**; GPU CTest remains conditional on an available self-hosted GPU runner. This is build/host-test coverage, not GPU runtime qualification.
 - **RTX A6000 (Ampere, `sm_86`) operation confirmed by a user**. This is not a separate A6000 kernel path, a benchmark, or proof that every model and profile works on that device.
 

@@ -105,6 +105,11 @@ set_tests_properties(
   ninfer_state_store_test
   PROPERTIES SKIP_RETURN_CODE 77)
 # Family frontend and one opt-in real-artifact prefix/MTP integration test.
+ninfer_add_test(ninfer_qwen3_6_custom_jinja_test
+  SOURCES targets/qwen3_6/test_custom_jinja.cpp
+  LIBRARIES ninfer_engine)
+target_include_directories(ninfer_qwen3_6_custom_jinja_test PRIVATE
+  ${PROJECT_SOURCE_DIR}/src/targets/qwen3_6/export)
 ninfer_add_test(ninfer_qwen3_6_frontend_test
   SOURCES targets/qwen3_6/test_frontend.cpp
   NEEDS_SOURCE_DIR
@@ -174,6 +179,9 @@ set_tests_properties(ninfer_qwen3_6_35b_a3b_dflash_load_plan_test
 ninfer_add_test(ninfer_openai_schema_test
   SOURCES test_openai_schema.cpp
   LIBRARIES ninfer_serve)
+ninfer_add_test(ninfer_openai_model_alias_test
+  SOURCES test_openai_model_alias.cpp
+  LIBRARIES ninfer_serve)
 ninfer_add_test(ninfer_openai_responses_test
   SOURCES test_openai_responses.cpp
   LIBRARIES ninfer_serve)
@@ -189,6 +197,9 @@ ninfer_add_test(ninfer_tool_call_parser_test
 ninfer_add_test(ninfer_serve_options_test
   SOURCES test_serve_options.cpp
   LIBRARIES ninfer_serve)
+ninfer_add_test(ninfer_server_chat_template_option_test
+  SOURCES test_server_chat_template_option.cpp
+  LIBRARIES ninfer_serve)
 ninfer_add_test(ninfer_request_log_test
   SOURCES test_request_log.cpp
   LIBRARIES ninfer_serve)
@@ -199,6 +210,10 @@ ninfer_add_test(ninfer_http_error_handler_test
   SOURCES test_http_error_handler.cpp
   LIBRARIES ninfer_serve)
 target_include_directories(ninfer_http_error_handler_test PRIVATE
+  ${PROJECT_SOURCE_DIR}/third_party/cpp-httplib)
+ninfer_add_test(ninfer_http_form_payload_test
+  SOURCES test_http_form_payload.cpp)
+target_include_directories(ninfer_http_form_payload_test PRIVATE
   ${PROJECT_SOURCE_DIR}/third_party/cpp-httplib)
 ninfer_add_test(ninfer_http_transport_test
   SOURCES test_http_transport.cpp

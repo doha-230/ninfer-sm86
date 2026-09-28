@@ -300,6 +300,13 @@ add_library(ninfer_text STATIC
 ninfer_internal_includes(ninfer_text)
 target_compile_definitions(ninfer_text PUBLIC UTF8PROC_STATIC)
 
+# Host-side interpreter for non-registered chat templates embedded in model artifacts.
+add_subdirectory(${PROJECT_SOURCE_DIR}/third_party/llama-jinja
+                 ${PROJECT_BINARY_DIR}/llama-jinja)
+target_sources(ninfer_jinja PRIVATE text/jinja.cpp)
+ninfer_internal_includes(ninfer_jinja)
+target_link_libraries(ninfer_jinja PUBLIC ninfer_text)
+
 add_library(ninfer_media_decode STATIC
   media/decode/decode.cpp)
 ninfer_internal_includes(ninfer_media_decode)
@@ -349,6 +356,7 @@ target_link_libraries(ninfer_engine
     ninfer_core
     ninfer_ops
     ninfer_text
+    ninfer_jinja
     ninfer_media_decode)
 add_library(ninfer::engine ALIAS ninfer_engine)
 

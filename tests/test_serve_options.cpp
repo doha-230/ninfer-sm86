@@ -57,6 +57,8 @@ int main() {
                       "Responses store defaults mismatch");
     failures += check(!defaults.model_id_override.has_value(),
                       "model id override is unexpectedly configured by default");
+    failures += check(defaults.chat_template_path.empty(),
+                      "external chat template unexpectedly configured by default");
     failures += check(!defaults.default_thinking_budget,
                       "thinking budget is unexpectedly limited by default");
     failures += check(
@@ -86,6 +88,15 @@ int main() {
         check(model_alias.model_id_override == "deployment-alias" &&
                   resolve_public_model_id(model_alias, "artifact-model") == "deployment-alias",
               "explicit model id did not override the artifact identity");
+
+    const ServeOptions local_template = parse({"ninfer-serve", "model.ninfer",
+                                                "--chat-template", "./sharp.jinja"});
+    failures += check(local_template.chat_template_path == "./sharp.jinja",
+                      "local chat template path was not preserved");
+    bool empty_template_rejected = false;
+    try { (void)parse({"ninfer-serve", "model.ninfer", "--chat-template", ""}); }
+    catch (const std::invalid_argument&) { empty_template_rejected = true; }
+    failures += check(empty_template_rejected, "empty chat template path was accepted");
 
     const ServeOptions context_cost =
         parse({"ninfer-serve", "model.ninfer", "--context-cost-presets", "local-costs.json"});
