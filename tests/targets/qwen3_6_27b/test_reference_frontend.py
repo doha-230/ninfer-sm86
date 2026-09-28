@@ -1,12 +1,20 @@
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from types import SimpleNamespace
+
+import pytest
 
 from tools.reference.qwen3_6.common.frontend import Frontend
 
 
-MODEL = Path("/home/neroued/models/llm/qwen/Qwen3.6-27B/base-hf-bf16")
+MODEL = Path(
+    os.environ.get(
+        "NINFER_QWEN3_6_27B_SOURCE",
+        "/home/neroued/models/llm/qwen/Qwen3.6-27B/base-hf-bf16",
+    )
+)
 CONFIG_ONLY_TOKENS = {
     "<|audio_start|>": 248070,
     "<|audio_end|>": 248071,
@@ -34,6 +42,8 @@ class _OfficialSourceBinding:
 
 
 def test_reference_consumes_the_raw_official_resource_pair():
+    if not (MODEL / "tokenizer.json").is_file():
+        pytest.skip(f"official source checkpoint is not available: {MODEL}")
     frontend = Frontend(_OfficialSourceBinding())
 
     assert len(frontend.tokenizer) == 248077

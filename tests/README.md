@@ -107,6 +107,15 @@ artifact. The 35B-A3B reference binding test follows the same rule with
 `NINFER_QWEN3_6_35B_A3B_ARTIFACT` and `out/qwen3_6_35b_a3b.ninfer`. The remaining Python
 target tests still run without either artifact.
 
+The three Python cases that read a raw BF16 source checkpoint take the checkpoint root from
+`NINFER_QWEN3_6_27B_SOURCE` or `NINFER_QWEN3_6_35B_A3B_SOURCE`, and skip when the expected
+resource file is absent, so a machine without the source checkpoints still runs the rest of the
+suite and reports the reason for each skip.
+
+`.github/workflows/ci.yml` runs these Python suites and a full sm_86 CUDA build on GitHub-hosted
+runners. The complete CTest run needs a device, so it is dispatched on demand against a
+self-hosted GPU runner instead of being reported as passing without one.
+
 The C++ prefix/MTP integration test is separately opt-in because it loads the full artifact and
 runs the real engine:
 
