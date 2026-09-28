@@ -75,8 +75,13 @@ jobs:
             -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_CUDA_ARCHITECTURES=86 \
             -DBUILD_TESTING=ON
+      # A GitHub-hosted runner provides 4 vCPU and 16 GB, and this engine has translation units
+      # that need several GB each (program_impl.h, the softmax-attention routes). An unbounded -j
+      # gets cc1plus OOM-killed and then takes the runner agent down with it, so this job - the only
+      # one on a memory-limited machine - caps the job count. The GPU job still builds without a
+      # bound because it runs on the project's own machine.
       - name: Build every product and test target
-        run: cmake --build build -j
+        run: cmake --build build -j 2
 
   gpu-tests:
     name: CUDA tests on GPU (sm_86)
