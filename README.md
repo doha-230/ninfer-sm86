@@ -6,16 +6,16 @@ Run supported Qwen `.ninfer` models on Ampere GPUs with compute capability **8.6
 
 > **Start here:** RTX 3090 / 3090 Ti and RTX A6000 users can download a Windows package and a model artifact, then run a local CLI or HTTP server. Linux users can build with Docker or from source. Model weights are separate downloads.
 
-**Release vs. source:** The [v0.7.0-sm86 Windows archives](https://github.com/doha-230/ninfer-sm86/releases/tag/v0.7.0-sm86) are built from a different, older release line. They already have a local `--chat-template` option and the earlier 413 fix, but their custom renderer does not attach image/video placeholders to media input. Use a build of the current source for **local template + Vision**. This combination has host-side rendering/media-alignment tests, not a qualified GPU image-inference run.
+**Current release:** [v0.7.1-sm86](https://github.com/doha-230/ninfer-sm86/releases/tag/v0.7.1-sm86) ships separate Windows x64 CUDA 12.8 and 13.3 packages with local template + Vision support. The older [v0.7.0-sm86](https://github.com/doha-230/ninfer-sm86/releases/tag/v0.7.0-sm86) packages recognize `--chat-template` but do not connect custom-template media placeholders to image/video input. The new route passed host-side tests; on-device image inference was not qualified in release CI.
 
 ## What this fork changes from Don-Chad
 
 [Don-Chad/ninfer-3090](https://github.com/Don-Chad/ninfer-3090) already brought Qwen inference to `sm_86`, including RTX 3090 builds, Windows and Linux binaries, and the main serving features. This fork does not claim those as new inventions.[1][2] Its additional practical work is:
 
 - Restore the fix for the independent 8 KiB form-urlencoded body cap (HTTP 413 below the configured limit) after a source merge; the configured payload limit remains enforced. Accept non-empty OpenAI client model aliases for the single resident model while reporting its public identity in responses. The 413 fix was also present in the older release line.
-- Connect a local Jinja file (`ninfer-serve --chat-template FILE`) to Vision without modifying the model artifact. With `--vision`, image/video placeholders must correspond to input media in order; mismatched media is rejected. **This combined route is in current source, not the v0.7.0-sm86 archives.**
-- Separate **CUDA 12 and CUDA 13 Windows x64 release archives**, so users can select a package for their driver environment.[4]
-- GitHub-hosted **Python tests and a complete CUDA 12.8 `sm_86` compile**; GPU CTest remains conditional on an available self-hosted GPU runner. This is build/host-test coverage, not GPU runtime qualification.
+- Connect a local Jinja file (`ninfer-serve --chat-template FILE`) to Vision without modifying the model artifact. With `--vision`, image/video placeholders must correspond to input media in order; mismatched media is rejected. **This combined route is included in v0.7.1-sm86, not v0.7.0-sm86.**
+- Separate **CUDA 12.8 and CUDA 13.3 Windows x64 release archives**, so users can select a package for their driver environment.[4]
+- Both Windows release packages compiled for `sm_86` and passed five host tests each on GitHub-hosted Windows 2022 runners. This is build/host-test coverage, not GPU runtime qualification.[4]
 - **RTX A6000 (Ampere, `sm_86`) operation confirmed by a user**. This is not a separate A6000 kernel path, a benchmark, or proof that every model and profile works on that device.
 
 Don-Chad's v0.6.1 release included a Linux binary; the current release here supplies Windows archives only. Linux users build from source or Docker.[2][4]
@@ -44,7 +44,7 @@ Choose an artifact from its [model card](#model-artifacts). The linked cards doc
 
 ### Windows x64
 
-1. Download and extract a Windows x64 archive from the [latest release](https://github.com/doha-230/ninfer-sm86/releases/latest). Choose its CUDA 12 or CUDA 13 variant for your installed NVIDIA driver.
+1. Download and extract `ninfer-sm86-cuda12.zip` (CUDA 12.8) or `ninfer-sm86-cuda13.zip` (CUDA 13.3) from [v0.7.1-sm86](https://github.com/doha-230/ninfer-sm86/releases/tag/v0.7.1-sm86). Choose the variant supported by your NVIDIA driver; release notes list SHA-256 checksums.
 2. Download [Qwen3.8-27B groupwise-int](https://huggingface.co/neroued/Qwen3.8-27B-NInfer/blob/main/qwen3_8_27b.ninfer) (about 17 GiB). Save it as `models\qwen3_8_27b.ninfer` beside the extracted executables. The [model card](model-cards/Qwen3.8-27B-NInfer/README.md) has its checksum.
 3. Open PowerShell in that directory and run a short text generation:
 
@@ -70,9 +70,18 @@ See [HTTP serving](docs/serving.md) for request examples. The archive contains W
 
 There is no prebuilt Linux release archive. Build with Docker or from source, then download a model artifact separately. The [Linux guide](docs/rtx-3090-linux.md) includes prerequisites, build commands, a Docker run example, and a short generation check. Its older release-specific notes are not a description of the current Windows release.
 
-### Offline chat template with image input (current source build)
+### Offline chat template with image input
 
-After [building the current source on Linux](docs/rtx-3090-linux.md#native-ubuntu-2404-build), copy the `.jinja` file onto the machine and start the server with both options:
+On Windows, use the v0.7.1-sm86 `ninfer-serve.exe` from the extracted archive with your local `.jinja` file:
+
+```powershell
+.\ninfer-serve.exe .\models\qwen3_8_27b.ninfer `
+  --host 127.0.0.1 --port 8080 `
+  --max-context 8192 --kv-capacity 8192 --kv-dtype int8 `
+  --vision --chat-template .\chat_template.jinja
+```
+
+On Linux, [build from source](docs/rtx-3090-linux.md#native-ubuntu-2404-build) and pass the same options:
 
 ```bash
 build-sm86/apps/ninfer-serve models/qwen3_8_27b.ninfer \
@@ -81,7 +90,7 @@ build-sm86/apps/ninfer-serve models/qwen3_8_27b.ninfer \
   --vision --chat-template /path/to/chat_template.jinja
 ```
 
-No network access is needed to read the template. Without `--chat-template`, the embedded template remains the default; without `--vision`, media input is disabled. On Windows, use an executable built from the current source and pass the same options to `ninfer-serve.exe`. The v0.7.0-sm86 zip recognizes `--chat-template`, but does **not** support the combined custom-template + Vision route. See [serving options and media requirements](docs/serving.md).
+No network access is needed to read the template. Without `--chat-template`, the embedded template remains the default; without `--vision`, media input is disabled. The v0.7.0-sm86 zip recognizes `--chat-template`, but does **not** support the combined custom-template + Vision route. See [serving options and media requirements](docs/serving.md).
 
 ## Model artifacts
 
@@ -105,11 +114,11 @@ Features depend on the selected artifact and startup options. The server hosts o
 - Blackwell-only NVFP4/W4A4 and FP8 A8 Tensor Core execution is unavailable on SM86. NVFP4/FP8 weight artifacts use supported A16 dequantization routes; the weight profile does not imply Blackwell kernel support.
 - KV cache supports BF16 and INT8. FP8 E4M3 KV and RotorQuant `rk8v4` are not supported.
 - Available VRAM, context length, and safe concurrency vary by GPU and workload. Historical RTX 3090 measurements are not a guarantee for every SM86 card, current source revision, or release binary; see the [performance methodology](docs/performance.md).
-- CI runs Python tests and compiles the CUDA SM86 targets. On-device CUDA tests need an NVIDIA GPU runner; none is currently registered, so CI compilation alone does not qualify GPU runtime correctness.
+- The [v0.7.1 Windows build](https://github.com/doha-230/ninfer-sm86/actions/runs/36538328881) compiled both CUDA 12.8 and 13.3 packages and passed five host tests per toolkit, including custom Jinja and frontend tests. These Windows runners have no GPU; this does not establish on-device GPU or image/video inference correctness.
 
 ## Project links
 
-- [Latest release](https://github.com/doha-230/ninfer-sm86/releases/latest) · [English release notes](RELEASE_NOTES_0.7.0-sm86.md) · [한국어 릴리스 노트](RELEASE_NOTES_0.7.0-sm86.ko.md)
+- [v0.7.1-sm86 download and bilingual release notes](https://github.com/doha-230/ninfer-sm86/releases/tag/v0.7.1-sm86) · [v0.7.0-sm86 historical notes (English)](RELEASE_NOTES_0.7.0-sm86.md) · [한국어](RELEASE_NOTES_0.7.0-sm86.ko.md)
 - [Documentation index](docs/README.md) · [Contributing policy](PR_POLICY.md) · [Upstream NInfer](https://github.com/Neroued/ninfer)
 - Apache License 2.0 · [LICENSE](LICENSE)
 
@@ -118,4 +127,4 @@ Features depend on the selected artifact and startup options. The server hosts o
 [1] https://github.com/Don-Chad/ninfer-3090 — Don-Chad NInfer-3090
 [2] https://github.com/Don-Chad/ninfer-3090/releases/tag/v0.6.1-rtx3090 — Don-Chad v0.6.1 release
 [3] https://developer.nvidia.com/cuda-gpus — NVIDIA CUDA GPUs
-[4] https://github.com/doha-230/ninfer-sm86/releases/tag/v0.7.0-sm86 — NInfer SM86 v0.7.0 release
+[4] https://github.com/doha-230/ninfer-sm86/releases/tag/v0.7.1-sm86 — NInfer SM86 v0.7.1 release
