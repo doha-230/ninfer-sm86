@@ -19,6 +19,7 @@
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
+#include <exception>
 #include <fstream>
 #include <future>
 #include <iostream>
@@ -550,6 +551,7 @@ int test_bounded_tokenizer_prefix() {
 }
 
 int test_context_capacity_guard() {
+    std::cerr << "capacity: input\n";
     ninfer::PromptInput input;
     ninfer::ChatMessage message;
     message.role = ninfer::ChatRole::User;
@@ -557,23 +559,29 @@ int test_context_capacity_guard() {
         ninfer::MessagePart{.kind = ninfer::MessagePartKind::Text, .text = "x", .media = {}});
     input.messages.push_back(std::move(message));
 
+    std::cerr << "capacity: counting frontend\n";
     const Frontend counting         = FrontendFactory::create_component(resources(), false);
+    std::cerr << "capacity: count\n";
     const std::uint32_t exact_count = counting.count_tokens(input);
+    std::cerr << "capacity: exact count " << exact_count << '\n';
     ninfer::targets::qwen3_6::FrontendOptions exact_options;
     exact_options.vision_enabled = false;
     exact_options.max_context    = exact_count;
     const Frontend exact         = FrontendFactory::create_component(resources(), exact_options);
+    std::cerr << "capacity: exact prepare\n";
     int failures = check(exact.prepare(input).summary().prompt_tokens == exact_count,
                          "Frontend rejected a prompt exactly at max_context");
 
     ninfer::targets::qwen3_6::FrontendOptions short_options = exact_options;
     short_options.max_context                               = exact_count - 1U;
     const Frontend short_frontend = FrontendFactory::create_component(resources(), short_options);
+    std::cerr << "capacity: short count / prepare\n";
     failures += check(short_frontend.count_tokens(input) == exact_count,
                       "exact token counting was incorrectly bounded by max_context");
     failures += check(throws_context_length([&] { (void)short_frontend.prepare(input); }),
                       "Frontend accepted a text prompt at max_context + 1");
 
+    std::cerr << "capacity: prepare tokens\n";
     std::vector<ninfer::TokenId> exact_tokens(exact_count, 0);
     failures += check(exact.prepare_tokens(exact_tokens).summary().prompt_tokens == exact_count,
                       "prepare_tokens rejected an exact-capacity token vector");
@@ -584,13 +592,16 @@ int test_context_capacity_guard() {
 
     ninfer::targets::qwen3_6::FrontendOptions media_options = short_options;
     media_options.vision_enabled                            = true;
+    std::cerr << "capacity: media frontend\n";
     const Frontend media_frontend = FrontendFactory::create_component(resources(), media_options);
+    std::cerr << "capacity: rejected media prepare\n";
     failures += check(throws_context_length([&] {
                           (void)media_frontend.prepare(
                               image_text_input({0}, std::string(64, 'x'), "must-not-decode.bin"));
                       }),
                       "over-capacity media prompt was not rejected before media decoding");
 
+    std::cerr << "capacity: cancelled media prepare\n";
     std::atomic<int> control_checks{0};
     ninfer::PreparationControl cancelled_during_tokenization{
         .deadline     = {},
@@ -607,6 +618,7 @@ int test_context_capacity_guard() {
             check(error.kind() == ninfer::RequestErrorKind::Cancelled && control_checks.load() == 3,
                   "media over-capacity result took priority over tokenization cancellation");
     }
+    std::cerr << "capacity: complete\n";
     return failures;
 }
 
@@ -2231,6 +2243,18 @@ int test_media_preparation_cancellation() {
 } // namespace
 
 int main() {
+    std::set_terminate([] {
+        if (auto active = std::current_exception()) {
+            try {
+                std::rethrow_exception(active);
+            } catch (const std::exception& error) {
+                std::cerr << "terminate exception: " << error.what() << '\n';
+            } catch (...) { std::cerr << "terminate non-standard exception\n"; }
+        } else {
+            std::cerr << "terminate without active exception\n";
+        }
+        std::abort();
+    });
     std::cerr << "initialize frontend\n";
 #define RUN_TEST(expression)                           \
     do {                                               \
