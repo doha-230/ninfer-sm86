@@ -1,0 +1,2 @@
+# These fixtures are identified by their exact template bytes on every platform.
+tests/fixtures/frontend/*.jinja text eol=lf
