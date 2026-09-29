@@ -2,17 +2,19 @@
 
 [English](README.md) · **한국어**
 
-Ampere GPU(Compute Capability **8.6**)에서 지원 Qwen `.ninfer` 모델을 실행하세요. 이 저장소는 Blackwell 중심 NInfer에서 파생된 Don-Chad의 SM86 포크를 기반으로 합니다. SM86 지원을 이 포크가 처음 만든 것은 아닙니다.
+Ampere GPU(Compute Capability **8.6**)에서 지원 Qwen `.ninfer` 모델을 실행하세요. [Don-Chad의 SM86 포크](https://github.com/Don-Chad/ninfer-3090)를 기반으로, 클라이언트의 HTTP 413·모델명 불일치를 해결하고 폐쇄망 로컬 채팅 템플릿을 이미지·비디오 입력과 함께 쓰는 경로를 더했습니다. SM86 추론 자체는 Don-Chad가 이미 제공했습니다.
 
 > **시작 안내:** RTX 3090/3090 Ti 및 RTX A6000 사용자는 Windows 패키지와 모델 아티팩트를 각각 다운로드해 로컬 CLI 또는 HTTP 서버를 실행할 수 있습니다. Linux에서는 Docker나 소스 빌드를 사용합니다. 모델 가중치는 패키지에 포함되지 않습니다.
+
+**배포본과 현재 소스의 차이:** [v0.7.0-sm86 Windows 아카이브](https://github.com/doha-230/ninfer-sm86/releases/tag/v0.7.0-sm86)는 현재와 다른 과거 릴리스 계열입니다. 그 배포본에도 로컬 `--chat-template` 옵션과 당시 413 수정은 있지만, 커스텀 렌더러가 이미지·비디오 자리표시자를 실제 미디어 입력에 연결하지는 않습니다. **로컬 템플릿과 비전을 함께 사용**하려면 현재 소스로 빌드한 실행 파일을 사용하세요. 이 조합은 호스트 렌더링·미디어 위치 테스트를 거쳤지만 GPU 이미지 추론까지 검증한 것은 아닙니다.
 
 ## Don-Chad 원본과 비교해 달라진 점
 
 [Don-Chad/ninfer-3090](https://github.com/Don-Chad/ninfer-3090)은 이미 RTX 3090용 `sm_86` Qwen 추론, Windows·Linux 바이너리, 주요 서버 기능을 제공했습니다. 이 포크가 해당 기능을 처음 구현했다고 주장하지 않습니다.[1][2] 이 저장소에서 추가로 해결한 실용적 과제는 다음과 같습니다.
 
+- 소스 병합 후 다시 들어온 form-urlencoded 별도 8 KiB 제한을 제거해 설정한 요청 용량보다 작은 요청에서 발생하던 HTTP 413을 해결했습니다. 일반 용량 제한은 유지합니다. OpenAI 클라이언트의 비어 있지 않은 단일 모델 별칭을 허용하고 응답에는 서버의 공개 모델 ID를 표시합니다. 413 수정은 과거 릴리스 계열에도 있었습니다.
+- 모델 아티팩트를 바꾸지 않고 로컬 Jinja 파일(`ninfer-serve --chat-template FILE`)을 비전에 연결합니다. `--vision`을 켜면 이미지·비디오 자리표시자가 입력 미디어와 원래 순서대로 대응해야 하며, 대응하지 않으면 거절합니다. **이 조합은 현재 소스에만 있고 v0.7.0-sm86 아카이브에는 없습니다.**
 - **CUDA 12와 CUDA 13용 Windows x64 릴리스 아카이브를 분리**해 드라이버 환경에 맞는 패키지를 선택할 수 있게 했습니다.[4]
-- 설정된 요청 본문 제한보다 먼저 HTTP 413을 내던 form-urlencoded의 별도 8 KiB 제한을 제거했습니다. 설정된 일반 용량 제한은 유지합니다. OpenAI 클라이언트는 단일 탑재 모델에 대해 비어 있지 않은 별칭을 보낼 수 있고, 응답에는 서버의 공개 모델 ID를 사용합니다.
-- `ninfer-serve --chat-template FILE`로 로컬 Jinja 템플릿을 아티팩트 수정 없이 사용합니다. 비전에는 `--vision`과 이미지·비디오 자리표시자를 원래 입력 순서대로 출력하는 템플릿이 필요하며, 정확한 위치를 알 수 없는 캐시 마커는 거절합니다.
 - GitHub 호스팅 러너에서 **Python 테스트와 CUDA 12.8 `sm_86` 전체 빌드**를 검사합니다. GPU CTest는 사용할 수 있는 self-hosted GPU runner가 있을 때만 실행됩니다. 이는 GPU 실행 검증과 다릅니다.
 - **RTX A6000(Ampere, `sm_86`) 동작을 사용자로부터 확인**했습니다. A6000 전용 커널, 성능 수치 또는 모든 모델·설정 조합의 검증을 뜻하지는 않습니다.
 
@@ -67,6 +69,19 @@ Don-Chad의 v0.6.1은 Linux 바이너리도 배포했지만, 이 저장소의 �
 ### Linux
 
 사전 빌드 Linux 릴리스 아카이브는 없습니다. Docker 또는 소스에서 빌드하고 모델 아티팩트를 별도로 다운로드하세요. [Linux 안내서](docs/rtx-3090-linux.md)에 필수 구성요소, 빌드 명령, Docker 실행 예제와 짧은 생성 확인 절차가 있습니다. 안내서의 과거 릴리스 관련 내용은 현재 Windows 릴리스의 설명이 아닙니다.
+
+### 폐쇄망 템플릿과 이미지 입력 (현재 소스 빌드)
+
+[현재 소스를 Linux에서 빌드](docs/rtx-3090-linux.md#native-ubuntu-2404-build)한 뒤 `.jinja` 파일을 실행 머신에 복사하고 두 옵션을 함께 지정합니다.
+
+```bash
+build-sm86/apps/ninfer-serve models/qwen3_8_27b.ninfer \
+  --host 127.0.0.1 --port 8080 \
+  --max-context 8192 --kv-capacity 8192 --kv-dtype int8 \
+  --vision --chat-template /path/to/chat_template.jinja
+```
+
+템플릿을 읽는 데 네트워크는 필요하지 않습니다. `--chat-template`을 생략하면 아티팩트 내장 템플릿을 사용하고, `--vision`을 생략하면 미디어 입력이 비활성화됩니다. Windows에서도 현재 소스로 빌드한 `ninfer-serve.exe`에 같은 옵션을 사용하세요. v0.7.0-sm86 압축 파일도 `--chat-template`은 인식하지만 **커스텀 템플릿과 비전을 결합한 경로는 지원하지 않습니다.** 자세한 내용은 [서버 옵션과 미디어 조건](docs/serving.md)을 참고하세요.
 
 ## 모델 아티팩트
 

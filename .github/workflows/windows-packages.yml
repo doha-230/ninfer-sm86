@@ -1,0 +1,117 @@
+name: Windows SM86 packages
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    name: CUDA ${{ matrix.cuda }} (sm_86)
+    runs-on: windows-2022
+    timeout-minutes: 360
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - cuda: '12'
+            toolkit: '12.8'
+            chocolatey: '12.8.1.572'
+          - cuda: '13'
+            toolkit: '13.3'
+            chocolatey: '13.3.1'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache vcpkg
+        id: vcpkg-cache
+        uses: actions/cache@v4
+        with:
+          path: C:\vcpkg
+          key: vcpkg-sm86-${{ matrix.cuda }}-${{ hashFiles('vcpkg.json') }}-windows2022
+
+      - name: Install vcpkg
+        if: steps.vcpkg-cache.outputs.cache-hit != 'true'
+        shell: pwsh
+        run: |
+          git clone https://github.com/microsoft/vcpkg C:\vcpkg --depth 1
+          C:\vcpkg\bootstrap-vcpkg.bat -disableMetrics
+
+      - name: Install CUDA toolkit
+        shell: pwsh
+        run: |
+          # Run even on cache hits: Chocolatey registers the MSBuild CUDA targets.
+          choco install cuda --version=${{ matrix.chocolatey }} -y --no-progress
+          $cuda = 'C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v${{ matrix.toolkit }}'
+          if (-not (Test-Path "$cuda\bin\nvcc.exe")) { throw "Missing CUDA compiler at $cuda" }
+          & "$cuda\bin\nvcc.exe" --version
+
+      - name: Configure and build
+        shell: pwsh
+        run: |
+          $cuda = 'C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v${{ matrix.toolkit }}'
+          $env:CUDA_PATH = $cuda
+          $env:CUDA_HOME = $cuda
+          $env:CUDAToolkit_ROOT = $cuda
+          $env:PATH = "$cuda\bin;$env:PATH"
+          cmake -S . -B build-windows -G 'Visual Studio 17 2022' -A x64 `
+            -DCMAKE_TOOLCHAIN_FILE='C:\vcpkg\scripts\buildsystems\vcpkg.cmake' `
+            -DVCPKG_TARGET_TRIPLET=x64-windows `
+            -DCMAKE_CUDA_ARCHITECTURES=86 `
+            -DNINFER_BUILD_APPS=ON `
+            -DBUILD_TESTING=ON `
+            -DNINFER_BUILD_BENCHMARKS=OFF
+          if ($LASTEXITCODE -ne 0) { throw 'CMake configure failed' }
+          cmake --build build-windows --config Release -j --target `
+            ninfer ninfer-serve `
+            ninfer_qwen3_6_custom_jinja_test `
+            ninfer_qwen3_6_frontend_test `
+            ninfer_http_form_payload_test `
+            ninfer_openai_model_alias_test `
+            ninfer_server_chat_template_option_test
+          if ($LASTEXITCODE -ne 0) { throw 'Windows build failed' }
+
+      - name: Run host tests and inspect executables
+        shell: pwsh
+        run: |
+          ctest --test-dir build-windows -C Release --output-on-failure `
+            -R '^ninfer_(qwen3_6_custom_jinja|qwen3_6_frontend|http_form_payload|openai_model_alias|server_chat_template_option)_test$'
+          if ($LASTEXITCODE -ne 0) { throw 'Windows host tests failed' }
+          $help = & build-windows\apps\Release\ninfer-serve.exe --help
+          if ($LASTEXITCODE -ne 0 -or ($help -join "`n") -notmatch '--chat-template') {
+            throw 'Packaged server does not expose --chat-template'
+          }
+
+      - name: Package CUDA ${{ matrix.cuda }}
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force dist | Out-Null
+          foreach ($name in @('ninfer.exe', 'ninfer-serve.exe')) {
+            $source = Join-Path 'build-windows\apps\Release' $name
+            if (-not (Test-Path $source)) { throw "Missing release executable $source" }
+            Copy-Item $source dist\
+          }
+          Get-ChildItem build-windows -Recurse -Filter '*.dll' | ForEach-Object {
+            Copy-Item $_.FullName dist\ -Force
+          }
+          Copy-Item README.md, README.ko.md, LICENSE dist\
+          $archive = 'ninfer-sm86-cuda${{ matrix.cuda }}.zip'
+          Compress-Archive -Path dist\* -DestinationPath $archive -Force
+          Add-Type -AssemblyName System.IO.Compression
+          $zip = [System.IO.Compression.ZipFile]::OpenRead((Resolve-Path $archive))
+          try {
+            $entries = @($zip.Entries | ForEach-Object FullName)
+            foreach ($needed in @('ninfer.exe', 'ninfer-serve.exe', 'README.md', 'README.ko.md', 'LICENSE')) {
+              if ($needed -notin $entries) { throw "Missing archive entry $needed" }
+            }
+          } finally { $zip.Dispose() }
+          Get-FileHash $archive -Algorithm SHA256 | Format-List
+          Get-Item $archive | Select-Object Name, Length
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-sm86-cuda${{ matrix.cuda }}
+          path: ninfer-sm86-cuda${{ matrix.cuda }}.zip
+          if-no-files-found: error
+          retention-days: 14
