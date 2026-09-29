@@ -52,6 +52,8 @@ jobs:
         run: |
           $cuda = 'C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v${{ matrix.toolkit }}'
           $env:CUDA_PATH = $cuda
+          # NVIDIA's Visual Studio targets resolve the version-specific CUDA_PATH_Vxx_x.
+          [Environment]::SetEnvironmentVariable('CUDA_PATH_V${{ matrix.toolkit }}'.Replace('.', '_'), $cuda, 'Process')
           $env:CUDA_HOME = $cuda
           $env:CUDAToolkit_ROOT = $cuda
           $env:PATH = "$cuda\bin;$env:PATH"
