@@ -2231,6 +2231,12 @@ int test_media_preparation_cancellation() {
 } // namespace
 
 int main() {
+    std::cerr << "initialize frontend\n";
+#define RUN_TEST(expression)                           \
+    do {                                               \
+        std::cerr << #expression << '\n';             \
+        failures += (expression);                      \
+    } while (false)
     const FrontendResources owned = resources();
     const Frontend frontend       = FrontendFactory::create_component(owned);
     int failures                  = 0;
@@ -2252,34 +2258,35 @@ int main() {
                   << official_resource_dir()
                   << "; set NINFER_QWEN3_6_27B_HF_DIR to run the cases that need it\n";
     }
-    failures += test_bpe_merge_order();
-    failures += test_context_capacity_guard();
-    failures += test_official_chat_template();
-    failures += test_assistant_continuation();
-    failures += test_reasoning_effort_chat_template();
-    failures += test_rewrite_checkpoint_trace();
-    failures += test_official_resource_guards();
-    failures += test_local_chat_template_image_prepare();
-    failures += test_invalid_public_part_enums(frontend);
-    failures += test_text_and_image_prepare(frontend);
-    failures += test_image_resize_rejection_policy();
-    failures += test_multimodal_prompt_over_removed_32k_cap(frontend);
-    failures += test_attention_pairs_are_diagnostic(frontend);
-    failures += test_video_prepare(frontend);
-    failures += test_cross_round_stop(frontend);
-    failures += test_same_token_stop_priority(frontend);
-    failures += test_terminal_flush(frontend);
-    failures += test_reasoning_split(frontend);
-    failures += test_thinking_budget_control(frontend);
-    failures += test_utf8_and_hidden_eos(frontend);
-    failures += test_media_cache_reuses_immutable_payload();
-    failures += test_media_payload_outlives_frontend_cache();
-    failures += test_media_live_bytes_follow_last_payload_reference();
-    failures += test_media_cache_singleflight();
-    failures += test_media_cache_runs_independent_misses_in_parallel();
-    failures += test_many_images_prepare_in_one_parallel_batch();
-    failures += test_media_preparation_cancellation();
-    failures += test_invalid_media_classification();
-    failures += test_disabled_vision();
+    RUN_TEST(test_bpe_merge_order());
+    RUN_TEST(test_context_capacity_guard());
+    RUN_TEST(test_official_chat_template());
+    RUN_TEST(test_assistant_continuation());
+    RUN_TEST(test_reasoning_effort_chat_template());
+    RUN_TEST(test_rewrite_checkpoint_trace());
+    RUN_TEST(test_official_resource_guards());
+    RUN_TEST(test_local_chat_template_image_prepare());
+    RUN_TEST(test_invalid_public_part_enums(frontend));
+    RUN_TEST(test_text_and_image_prepare(frontend));
+    RUN_TEST(test_image_resize_rejection_policy());
+    RUN_TEST(test_multimodal_prompt_over_removed_32k_cap(frontend));
+    RUN_TEST(test_attention_pairs_are_diagnostic(frontend));
+    RUN_TEST(test_video_prepare(frontend));
+    RUN_TEST(test_cross_round_stop(frontend));
+    RUN_TEST(test_same_token_stop_priority(frontend));
+    RUN_TEST(test_terminal_flush(frontend));
+    RUN_TEST(test_reasoning_split(frontend));
+    RUN_TEST(test_thinking_budget_control(frontend));
+    RUN_TEST(test_utf8_and_hidden_eos(frontend));
+    RUN_TEST(test_media_cache_reuses_immutable_payload());
+    RUN_TEST(test_media_payload_outlives_frontend_cache());
+    RUN_TEST(test_media_live_bytes_follow_last_payload_reference());
+    RUN_TEST(test_media_cache_singleflight());
+    RUN_TEST(test_media_cache_runs_independent_misses_in_parallel());
+    RUN_TEST(test_many_images_prepare_in_one_parallel_batch());
+    RUN_TEST(test_media_preparation_cancellation());
+    RUN_TEST(test_invalid_media_classification());
+    RUN_TEST(test_disabled_vision());
+#undef RUN_TEST
     return failures == 0 ? 0 : 1;
 }
