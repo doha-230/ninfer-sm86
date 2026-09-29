@@ -195,6 +195,12 @@ FrontendResources resources(const std::string& chat_template = thinking_toggle_t
          added(248057, "<|video_pad|>", true), added(248068, "<think>"),
          added(248069, "</think>")});
     nlohmann::json vocab           = {{"x", 0}, {"ä", 10}, {"¸", 11}, {"Ń", 12}};
+    // The synthetic tokenizer must represent any ordinary byte emitted by a rendered template.
+    // Keep the explicit IDs above so tests that assert exact tokens remain unchanged.
+    for (int byte = 0; byte <= 255; ++byte) {
+        const std::string symbol = byte_level_symbol(static_cast<std::uint8_t>(byte));
+        if (!vocab.contains(symbol)) { vocab[symbol] = 1000 + byte; }
+    }
     vocab[byte_level_symbol(0x80)] = kByte80Token;
     vocab[byte_level_symbol(0xe0)] = kByteE0Token;
     vocab[byte_level_symbol(0xed)] = kByteEDToken;
