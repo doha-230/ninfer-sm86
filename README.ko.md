@@ -6,7 +6,7 @@ Ampere GPU(Compute Capability **8.6**)에서 지원 Qwen `.ninfer` 모델을 실
 
 > **시작 안내:** RTX 3090/3090 Ti 및 RTX A6000 사용자는 Windows 패키지와 모델 아티팩트를 각각 다운로드해 로컬 CLI 또는 HTTP 서버를 실행할 수 있습니다. Linux에서는 Docker나 소스 빌드를 사용합니다. 모델 가중치는 패키지에 포함되지 않습니다.
 
-**현재 배포본:** [v0.7.1-sm86](https://github.com/doha-230/ninfer-sm86/releases/tag/v0.7.1-sm86)에는 로컬 템플릿과 비전을 함께 사용할 수 있는 Windows x64 CUDA 12.8·13.3 패키지가 각각 있습니다. 이전 [v0.7.0-sm86](https://github.com/doha-230/ninfer-sm86/releases/tag/v0.7.0-sm86) 배포본도 `--chat-template`을 인식하지만 커스텀 템플릿의 미디어 자리표시자를 이미지·비디오 입력에 연결하지 않습니다. 새 경로는 호스트 테스트를 통과했으며, 릴리스 CI에서 실제 GPU 이미지 추론까지 검증한 것은 아닙니다.
+**현재 배포본:** [v0.7.2-sm86](https://github.com/doha-230/ninfer-sm86/releases/tag/v0.7.2-sm86)에는 Release DLL로 구성한 Windows x64 CUDA 12.8·13.3 패키지가 각각 있습니다. 이전 v0.7.1 패키지에는 Debug FFmpeg DLL이 포함되어 실행 시 오류가 발생할 수 있으므로 교체했습니다. 로컬 템플릿과 비전 지원은 그대로 포함되며, 릴리스 CI에서 실제 GPU 이미지 추론까지 검증한 것은 아닙니다.
 
 ## Don-Chad 원본과 비교해 달라진 점
 
@@ -44,7 +44,7 @@ Don-Chad의 v0.6.1은 Linux 바이너리도 배포했지만, 이 저장소의 �
 
 ### Windows x64
 
-1. [v0.7.1-sm86](https://github.com/doha-230/ninfer-sm86/releases/tag/v0.7.1-sm86)에서 CUDA 12.8용 `ninfer-sm86-cuda12.zip` 또는 CUDA 13.3용 `ninfer-sm86-cuda13.zip`을 받아 압축을 풉니다. NVIDIA 드라이버에 맞는 버전을 선택하세요. SHA-256 체크섬은 릴리스 노트에 있습니다.
+1. [v0.7.2-sm86](https://github.com/doha-230/ninfer-sm86/releases/tag/v0.7.2-sm86)에서 CUDA 12.8용 `ninfer-sm86-cuda12.zip` 또는 CUDA 13.3용 `ninfer-sm86-cuda13.zip`을 받아 압축을 풉니다. NVIDIA 드라이버에 맞는 버전을 선택하세요. SHA-256 체크섬은 릴리스 노트에 있습니다.
 2. [Qwen3.8-27B groupwise-int](https://huggingface.co/neroued/Qwen3.8-27B-NInfer/blob/main/qwen3_8_27b.ninfer) 아티팩트(약 17 GiB)를 다운로드합니다. 압축을 푼 실행 파일 옆의 `models\qwen3_8_27b.ninfer`로 저장하세요. 체크섬은 [모델 카드](model-cards/Qwen3.8-27B-NInfer/README.md)에 있습니다.
 3. 해당 디렉터리에서 PowerShell을 열고 짧은 텍스트 생성을 실행합니다.
 
@@ -72,7 +72,7 @@ Don-Chad의 v0.6.1은 Linux 바이너리도 배포했지만, 이 저장소의 �
 
 ### 폐쇄망 템플릿과 이미지 입력
 
-Windows에서는 v0.7.1-sm86 아카이브의 `ninfer-serve.exe`와 로컬 `.jinja` 파일을 사용합니다.
+Windows에서는 v0.7.2-sm86 아카이브의 `ninfer-serve.exe`와 로컬 `.jinja` 파일을 사용합니다.
 
 ```powershell
 .\ninfer-serve.exe .\models\qwen3_8_27b.ninfer `
@@ -118,7 +118,7 @@ build-sm86/apps/ninfer-serve models/qwen3_8_27b.ninfer \
 
 ## 프로젝트 링크
 
-- [v0.7.1-sm86 다운로드와 영·한 릴리스 노트](https://github.com/doha-230/ninfer-sm86/releases/tag/v0.7.1-sm86) · [v0.7.0-sm86 이전 릴리스 노트(영어)](RELEASE_NOTES_0.7.0-sm86.md) · [한국어](RELEASE_NOTES_0.7.0-sm86.ko.md)
+- [v0.7.2-sm86 다운로드와 영·한 릴리스 노트](https://github.com/doha-230/ninfer-sm86/releases/tag/v0.7.2-sm86) · [v0.7.0-sm86 이전 릴리스 노트(영어)](RELEASE_NOTES_0.7.0-sm86.md) · [한국어](RELEASE_NOTES_0.7.0-sm86.ko.md)
 - [문서 목차](docs/README.md) · [기여 정책](PR_POLICY.md) · [Upstream NInfer](https://github.com/Neroued/ninfer)
 - Apache License 2.0 · [LICENSE](LICENSE)
 

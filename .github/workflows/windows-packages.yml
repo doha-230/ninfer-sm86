@@ -23,6 +23,9 @@ jobs:
             chocolatey: '13.3.1'
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
 
       - name: Cache vcpkg
         id: vcpkg-cache
@@ -94,9 +97,20 @@ jobs:
             if (-not (Test-Path $source)) { throw "Missing release executable $source" }
             Copy-Item $source dist\
           }
-          Get-ChildItem build-windows -Recurse -Filter '*.dll' | ForEach-Object {
+          # vcpkg keeps Debug DLLs under debug\bin. They can share FFmpeg names
+          # with Release DLLs, so never search the whole build tree here.
+          $releaseBin = 'build-windows\vcpkg_installed\x64-windows\bin'
+          if (-not (Test-Path $releaseBin)) { throw "Missing vcpkg Release DLL directory $releaseBin" }
+          Get-ChildItem $releaseBin -File -Filter '*.dll' | ForEach-Object {
             Copy-Item $_.FullName dist\ -Force
           }
+          Get-ChildItem 'build-windows\apps\Release' -File -Filter '*.dll' | ForEach-Object {
+            Copy-Item $_.FullName dist\ -Force
+          }
+          & dist\ninfer-serve.exe --help | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw 'Packaged server cannot start' }
+          & dist\ninfer.exe --help | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw 'Packaged CLI cannot start' }
           Copy-Item README.md, README.ko.md, LICENSE dist\
           $archive = 'ninfer-sm86-cuda${{ matrix.cuda }}.zip'
           Compress-Archive -Path dist\* -DestinationPath $archive -Force
@@ -108,6 +122,8 @@ jobs:
               if ($needed -notin $entries) { throw "Missing archive entry $needed" }
             }
           } finally { $zip.Dispose() }
+          python scripts/check_windows_release.py $archive
+          if ($LASTEXITCODE -ne 0) { throw 'Release archive imports a Debug CRT' }
           Get-FileHash $archive -Algorithm SHA256 | Format-List
           Get-Item $archive | Select-Object Name, Length
 

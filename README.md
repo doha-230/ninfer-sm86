@@ -6,7 +6,7 @@ Run supported Qwen `.ninfer` models on Ampere GPUs with compute capability **8.6
 
 > **Start here:** RTX 3090 / 3090 Ti and RTX A6000 users can download a Windows package and a model artifact, then run a local CLI or HTTP server. Linux users can build with Docker or from source. Model weights are separate downloads.
 
-**Current release:** [v0.7.1-sm86](https://github.com/doha-230/ninfer-sm86/releases/tag/v0.7.1-sm86) ships separate Windows x64 CUDA 12.8 and 13.3 packages with local template + Vision support. The older [v0.7.0-sm86](https://github.com/doha-230/ninfer-sm86/releases/tag/v0.7.0-sm86) packages recognize `--chat-template` but do not connect custom-template media placeholders to image/video input. The new route passed host-side tests; on-device image inference was not qualified in release CI.
+**Current release:** [v0.7.2-sm86](https://github.com/doha-230/ninfer-sm86/releases/tag/v0.7.2-sm86) ships Windows x64 CUDA 12.8 and 13.3 packages with Release DLLs. It replaces v0.7.1 packages that could fail at startup because they bundled Debug FFmpeg DLLs. Local template + Vision support remains included; on-device image inference was not qualified in release CI.
 
 ## What this fork changes from Don-Chad
 
@@ -44,7 +44,7 @@ Choose an artifact from its [model card](#model-artifacts). The linked cards doc
 
 ### Windows x64
 
-1. Download and extract `ninfer-sm86-cuda12.zip` (CUDA 12.8) or `ninfer-sm86-cuda13.zip` (CUDA 13.3) from [v0.7.1-sm86](https://github.com/doha-230/ninfer-sm86/releases/tag/v0.7.1-sm86). Choose the variant supported by your NVIDIA driver; release notes list SHA-256 checksums.
+1. Download and extract `ninfer-sm86-cuda12.zip` (CUDA 12.8) or `ninfer-sm86-cuda13.zip` (CUDA 13.3) from [v0.7.2-sm86](https://github.com/doha-230/ninfer-sm86/releases/tag/v0.7.2-sm86). Choose the variant supported by your NVIDIA driver; release notes list SHA-256 checksums.
 2. Download [Qwen3.8-27B groupwise-int](https://huggingface.co/neroued/Qwen3.8-27B-NInfer/blob/main/qwen3_8_27b.ninfer) (about 17 GiB). Save it as `models\qwen3_8_27b.ninfer` beside the extracted executables. The [model card](model-cards/Qwen3.8-27B-NInfer/README.md) has its checksum.
 3. Open PowerShell in that directory and run a short text generation:
 
@@ -72,7 +72,7 @@ There is no prebuilt Linux release archive. Build with Docker or from source, th
 
 ### Offline chat template with image input
 
-On Windows, use the v0.7.1-sm86 `ninfer-serve.exe` from the extracted archive with your local `.jinja` file:
+On Windows, use the v0.7.2-sm86 `ninfer-serve.exe` from the extracted archive with your local `.jinja` file:
 
 ```powershell
 .\ninfer-serve.exe .\models\qwen3_8_27b.ninfer `
@@ -118,7 +118,7 @@ Features depend on the selected artifact and startup options. The server hosts o
 
 ## Project links
 
-- [v0.7.1-sm86 download and bilingual release notes](https://github.com/doha-230/ninfer-sm86/releases/tag/v0.7.1-sm86) · [v0.7.0-sm86 historical notes (English)](RELEASE_NOTES_0.7.0-sm86.md) · [한국어](RELEASE_NOTES_0.7.0-sm86.ko.md)
+- [v0.7.2-sm86 download and bilingual release notes](https://github.com/doha-230/ninfer-sm86/releases/tag/v0.7.2-sm86) · [v0.7.0-sm86 historical notes (English)](RELEASE_NOTES_0.7.0-sm86.md) · [한국어](RELEASE_NOTES_0.7.0-sm86.ko.md)
 - [Documentation index](docs/README.md) · [Contributing policy](PR_POLICY.md) · [Upstream NInfer](https://github.com/Neroued/ninfer)
 - Apache License 2.0 · [LICENSE](LICENSE)
 
