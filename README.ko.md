@@ -4,7 +4,7 @@
 
 Ampere GPU(Compute Capability **8.6**)에서 지원 Qwen `.ninfer` 모델을 실행하세요. [Don-Chad의 SM86 포크](https://github.com/Don-Chad/ninfer-3090)를 기반으로, 클라이언트의 HTTP 413·모델명 불일치를 해결하고 폐쇄망 로컬 채팅 템플릿을 이미지·비디오 입력과 함께 쓰는 경로를 더했습니다. SM86 추론 자체는 Don-Chad가 이미 제공했습니다.
 
-> **시작 안내:** RTX 3090/3090 Ti 및 RTX A6000 사용자는 Windows 패키지와 모델 아티팩트를 각각 다운로드해 로컬 CLI 또는 HTTP 서버를 실행할 수 있습니다. Linux에서는 Docker나 소스 빌드를 사용합니다. 모델 가중치는 패키지에 포함되지 않습니다.
+> **시작 안내:** RTX 3090/3090 Ti 및 RTX A6000 사용자는 Windows 패키지와 모델 아티팩트를 각각 다운로드해 로컬 CLI 또는 HTTP 서버를 실행할 수 있습니다. 모델 가중치는 패키지에 포함되지 않습니다.
 
 **현재 배포본:** [v0.7.2-sm86](https://github.com/doha-230/ninfer-sm86/releases/tag/v0.7.2-sm86)에는 Release DLL로 구성한 Windows x64 CUDA 12.8·13.3 패키지가 각각 있습니다. 이전 v0.7.1 패키지에는 Debug FFmpeg DLL이 포함되어 실행 시 오류가 발생할 수 있으므로 교체했습니다. 로컬 템플릿과 비전 지원은 그대로 포함되며, 릴리스 CI에서 실제 GPU 이미지 추론까지 검증한 것은 아닙니다.
 
@@ -18,7 +18,7 @@ Ampere GPU(Compute Capability **8.6**)에서 지원 Qwen `.ninfer` 모델을 실
 - GitHub 호스팅 Windows 2022 러너에서 두 Windows 패키지 모두 `sm_86`으로 빌드했고 각각 호스트 테스트 5개를 통과했습니다. GPU 실행 검증과는 다릅니다.[4]
 - **RTX A6000(Ampere, `sm_86`) 동작을 사용자로부터 확인**했습니다. A6000 전용 커널, 성능 수치 또는 모든 모델·설정 조합의 검증을 뜻하지는 않습니다.
 
-Don-Chad의 v0.6.1은 Linux 바이너리도 배포했지만, 이 저장소의 현재 릴리스에는 Windows 아카이브만 있습니다. Linux는 소스 또는 Docker로 빌드합니다.[2][4]
+현재 릴리스는 Windows x64 아카이브만 제공합니다.[4]
 
 ## 내 GPU에서 실행할 수 있나요?
 
@@ -66,10 +66,6 @@ Don-Chad의 v0.6.1은 Linux 바이너리도 배포했지만, 이 저장소의 �
 
 요청 예제는 [HTTP serving 안내](docs/serving.md)를 참고하세요. 아카이브에는 Windows 실행 파일과 런타임 의존성이 포함되며 **모델 가중치는 포함되지 않습니다.** Microsoft Visual C++ 2022 런타임이 없다면 별도로 설치해야 합니다.
 
-### Linux
-
-사전 빌드 Linux 릴리스 아카이브는 없습니다. Docker 또는 소스에서 빌드하고 모델 아티팩트를 별도로 다운로드하세요. [Linux 안내서](docs/rtx-3090-linux.md)에 필수 구성요소, 빌드 명령, Docker 실행 예제와 짧은 생성 확인 절차가 있습니다. 안내서의 과거 릴리스 관련 내용은 현재 Windows 릴리스의 설명이 아닙니다.
-
 ### 폐쇄망 템플릿과 이미지 입력
 
 Windows에서는 v0.7.2-sm86 아카이브의 `ninfer-serve.exe`와 로컬 `.jinja` 파일을 사용합니다.
@@ -79,15 +75,6 @@ Windows에서는 v0.7.2-sm86 아카이브의 `ninfer-serve.exe`와 로컬 `.jinj
   --host 127.0.0.1 --port 8080 `
   --max-context 8192 --kv-capacity 8192 --kv-dtype int8 `
   --vision --chat-template .\chat_template.jinja
-```
-
-Linux에서는 [소스에서 빌드](docs/rtx-3090-linux.md#native-ubuntu-2404-build)하고 같은 옵션을 지정합니다.
-
-```bash
-build-sm86/apps/ninfer-serve models/qwen3_8_27b.ninfer \
-  --host 127.0.0.1 --port 8080 \
-  --max-context 8192 --kv-capacity 8192 --kv-dtype int8 \
-  --vision --chat-template /path/to/chat_template.jinja
 ```
 
 템플릿을 읽는 데 네트워크는 필요하지 않습니다. `--chat-template`을 생략하면 아티팩트 내장 템플릿을 사용하고, `--vision`을 생략하면 미디어 입력이 비활성화됩니다. v0.7.0-sm86 압축 파일도 `--chat-template`은 인식하지만 **커스텀 템플릿과 비전을 결합한 경로는 지원하지 않습니다.** 자세한 내용은 [서버 옵션과 미디어 조건](docs/serving.md)을 참고하세요.
@@ -114,7 +101,7 @@ build-sm86/apps/ninfer-serve models/qwen3_8_27b.ninfer \
 - Blackwell 전용 NVFP4/W4A4 및 FP8 A8 Tensor Core 실행 경로는 SM86에서 사용할 수 없습니다. NVFP4/FP8 가중치 아티팩트는 지원되는 A16 dequantize 경로를 사용합니다. 가중치 프로필이 Blackwell 커널 지원을 뜻하지는 않습니다.
 - KV cache는 BF16과 INT8을 지원합니다. FP8 E4M3 KV와 RotorQuant `rk8v4`는 지원하지 않습니다.
 - 사용 가능한 VRAM, 컨텍스트 길이와 안전한 동시성은 GPU 및 작업에 따라 다릅니다. 과거 RTX 3090 측정값은 모든 SM86 GPU, 현재 소스 버전 또는 모든 릴리스 바이너리에서의 결과를 보장하지 않습니다. [성능 측정 방법](docs/performance.md)을 참고하세요.
-- [v0.7.1 Windows 빌드](https://github.com/doha-230/ninfer-sm86/actions/runs/36538328881)는 CUDA 12.8·13.3 패키지를 각각 컴파일하고 커스텀 Jinja와 프런트엔드 테스트를 포함한 호스트 테스트 5개씩을 통과했습니다. Windows 러너에 GPU가 없으므로 실제 GPU 또는 이미지·비디오 추론의 정확성을 입증하지는 않습니다.
+- [v0.7.2 Windows 빌드](https://github.com/doha-230/ninfer-sm86/actions/runs/36668047409)는 CUDA 12.8·13.3 패키지를 각각 컴파일하고 호스트 테스트 5개씩을 통과했습니다. 패키지의 두 실행 파일에서 `--help`를 실행하고 모든 EXE·DLL의 Debug CRT 의존성도 검사했습니다. Windows 러너에 GPU가 없으므로 실제 GPU 또는 이미지·비디오 추론의 정확성을 입증하지는 않습니다.
 
 ## 프로젝트 링크
 
@@ -127,4 +114,4 @@ build-sm86/apps/ninfer-serve models/qwen3_8_27b.ninfer \
 [1] https://github.com/Don-Chad/ninfer-3090 — Don-Chad NInfer-3090
 [2] https://github.com/Don-Chad/ninfer-3090/releases/tag/v0.6.1-rtx3090 — Don-Chad v0.6.1 release
 [3] https://developer.nvidia.com/cuda-gpus — NVIDIA CUDA GPUs
-[4] https://github.com/doha-230/ninfer-sm86/releases/tag/v0.7.1-sm86 — NInfer SM86 v0.7.1 release
+[4] https://github.com/doha-230/ninfer-sm86/releases/tag/v0.7.2-sm86 — NInfer SM86 v0.7.2 release
